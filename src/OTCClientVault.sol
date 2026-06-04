@@ -43,10 +43,30 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
         _;
     }
 
-    constructor(address factory_, address client_) Ownable(client_) {
+    constructor(address factory_, address client_, OTCTypes.DefaultLockConfig[] memory defaultLockConfigs_)
+        Ownable(client_)
+    {
         require(factory_ != address(0), InvalidAddress());
+        uint256 n = defaultLockConfigs_.length;
+
         factory = factory_;
         swapAccessLevel = OTCTypes.SwapAccessLevel.ManagedP2P;
+        for (uint256 i = 0; i < n;) {
+            OTCTypes.DefaultLockConfig memory config = defaultLockConfigs_[i];
+            address token = config.token;
+            uint256 duration = config.duration;
+            if (duration > 0) {
+                require(token != address(0), InvalidAddress());
+                require(
+                    duration <= OTCConstants.MAX_LOCK_DURATION,
+                    LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
+                );
+                tokenLockUntil[token] = block.timestamp + duration;
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @inheritdoc IOTCClientVault

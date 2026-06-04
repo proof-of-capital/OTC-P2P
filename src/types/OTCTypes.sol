@@ -21,6 +21,14 @@ library OTCTypes {
         uint16 openP2PFeeBps;
     }
 
+    /// @notice Default token lock configuration applied on vault deployment.
+    struct DefaultLockConfig {
+        /// @notice ERC-20 token address to initialize lock for.
+        address token;
+        /// @notice Lock duration in seconds applied from deployment timestamp.
+        uint256 duration;
+    }
+
     /// @notice Immutable snapshot of fee parameters captured at proposal creation.
     struct FeeSnapshot {
         /// @notice Swap fee rate at snapshot time (SupplierOnly and ManagedP2P).

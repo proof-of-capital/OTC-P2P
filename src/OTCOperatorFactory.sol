@@ -26,6 +26,10 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
 
     /// @notice Default lock duration in seconds for each token address.
     mapping(address token => uint256 duration) public defaultLockDuration;
+    /// @notice Ordered list of tokens that have ever had a default lock configured.
+    address[] public defaultLockTokens;
+    /// @notice Tracks whether a token is already present in `defaultLockTokens`.
+    mapping(address token => bool isTracked) private isDefaultLockTokenTracked;
     /// @notice Whether `vault` was deployed by this factory.
     mapping(address vault => bool) public isFactoryVault;
 
@@ -58,7 +62,17 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     function deployClientVault(address client) external override returns (address vault) {
         require(client != address(0), InvalidAddress());
 
-        vault = address(new OTCClientVault(address(this), client));
+        uint256 n = defaultLockTokens.length;
+        OTCTypes.DefaultLockConfig[] memory defaultLocks = new OTCTypes.DefaultLockConfig[](n);
+        for (uint256 i = 0; i < n;) {
+            address token = defaultLockTokens[i];
+            defaultLocks[i] = OTCTypes.DefaultLockConfig({token: token, duration: defaultLockDuration[token]});
+            unchecked {
+                ++i;
+            }
+        }
+
+        vault = address(new OTCClientVault(address(this), client, defaultLocks));
         isFactoryVault[vault] = true;
         vaults.push(vault);
 
@@ -135,11 +149,20 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         return vaults.length;
     }
 
+    /// @inheritdoc IOTCOperatorFactory
+    function getDefaultLockTokensCount() external view override returns (uint256) {
+        return defaultLockTokens.length;
+    }
+
     function _setDefaultLockDuration(address token, uint256 duration) internal {
         require(token != address(0), InvalidAddress());
         require(
             duration <= OTCConstants.MAX_LOCK_DURATION, LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
         );
+        if (!isDefaultLockTokenTracked[token]) {
+            isDefaultLockTokenTracked[token] = true;
+            defaultLockTokens.push(token);
+        }
         defaultLockDuration[token] = duration;
         emit DefaultLockDurationUpdated(token, duration);
     }

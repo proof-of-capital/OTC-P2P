@@ -17,6 +17,8 @@ interface IOTCOperatorFactory {
     function isFactoryVault(address vault) external view returns (bool);
     /// @notice Vault deployed at index `index`.
     function vaults(uint256 index) external view returns (address);
+    /// @notice Token configured at index `index` in the default lock token list.
+    function defaultLockTokens(uint256 index) external view returns (address);
 
     /// @notice Default fee configuration applied to all new client vaults.
     /// @return takerFeeBps Swap fee rate in basis points (SupplierOnly and ManagedP2P).
@@ -65,4 +67,7 @@ interface IOTCOperatorFactory {
 
     /// @notice Returns the total number of client vaults deployed by this factory.
     function getVaultsCount() external view returns (uint256);
+
+    /// @notice Returns the total number of tracked default-lock tokens.
+    function getDefaultLockTokensCount() external view returns (uint256);
 }

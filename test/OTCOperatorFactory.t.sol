@@ -324,6 +324,69 @@ contract OTCOperatorFactoryTest is Test {
         factory.setDefaultLockDurationsBatch(tokens, durations);
     }
 
+    function testSetDefaultLockDuration_TracksTokenListWithoutDuplicates() public {
+        address token = address(0xABCD);
+        vm.startPrank(operatorOwner);
+        factory.setDefaultLockDuration(token, 7 days);
+        factory.setDefaultLockDuration(token, 14 days);
+        vm.stopPrank();
+
+        assertEq(factory.getDefaultLockTokensCount(), 1);
+        assertEq(factory.defaultLockTokens(0), token);
+        assertEq(factory.defaultLockDuration(token), 14 days);
+    }
+
+    function testDeployClientVault_AppliesDefaultLockDurations() public {
+        address tokenA = address(0xAAAA);
+        address tokenB = address(0xBBBB);
+        address tokenZero = address(0xCCCC);
+        address[] memory tokens = new address[](3);
+        tokens[0] = tokenA;
+        tokens[1] = tokenB;
+        tokens[2] = tokenZero;
+        uint256[] memory durations = new uint256[](3);
+        durations[0] = 7 days;
+        durations[1] = 14 days;
+        durations[2] = 0;
+
+        vm.prank(operatorOwner);
+        factory.setDefaultLockDurationsBatch(tokens, durations);
+
+        vm.prank(operatorAdmin);
+        address vault = factory.deployClientVault(client);
+        OTCClientVault deployedVault = OTCClientVault(payable(vault));
+
+        assertEq(factory.getDefaultLockTokensCount(), 3);
+        assertEq(factory.defaultLockTokens(0), tokenA);
+        assertEq(factory.defaultLockTokens(1), tokenB);
+        assertEq(factory.defaultLockTokens(2), tokenZero);
+        assertEq(deployedVault.tokenLockUntil(tokenA), block.timestamp + 7 days);
+        assertEq(deployedVault.tokenLockUntil(tokenB), block.timestamp + 14 days);
+        assertEq(deployedVault.tokenLockUntil(tokenZero), 0);
+    }
+
+    function testDeployClientVault_UsesSnapshotOfDefaultLockDurations() public {
+        address token = address(0xAAAA);
+        vm.prank(operatorOwner);
+        factory.setDefaultLockDuration(token, 7 days);
+
+        vm.prank(operatorAdmin);
+        address vaultAAddress = factory.deployClientVault(address(0x3001));
+        OTCClientVault vaultA = OTCClientVault(payable(vaultAAddress));
+        uint256 firstLockUntil = vaultA.tokenLockUntil(token);
+
+        vm.prank(operatorOwner);
+        factory.setDefaultLockDuration(token, 30 days);
+
+        vm.prank(operatorAdmin);
+        address vaultBAddress = factory.deployClientVault(address(0x3002));
+        OTCClientVault vaultB = OTCClientVault(payable(vaultBAddress));
+
+        assertEq(firstLockUntil, block.timestamp + 7 days);
+        assertEq(vaultA.tokenLockUntil(token), firstLockUntil);
+        assertEq(vaultB.tokenLockUntil(token), block.timestamp + 30 days);
+    }
+
     // ── getCurrentFeeSnapshot ────────────────────────────────────────────────────
 
     function testGetCurrentFeeSnapshot_Values() public view {
