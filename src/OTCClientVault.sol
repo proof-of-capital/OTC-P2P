@@ -1,0 +1,546 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.35;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OTCTypes} from "./types/OTCTypes.sol";
+import {OTCConstants} from "./constants/OTCConstants.sol";
+import {IOTCClientVault} from "./interfaces/IOTCClientVault.sol";
+import {IOTCClientVaultErrors} from "./interfaces/IOTCClientVaultErrors.sol";
+import {IOTCClientVaultEvents} from "./interfaces/IOTCClientVaultEvents.sol";
+import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
+
+/// @title OTCClientVault
+/// @notice Holds a client's assets and executes multi-party OTC trades through a proposal-and-approval flow.
+contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTCClientVaultEvents, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    /// @notice Immutable operator factory that created this vault.
+    address public immutable factory;
+
+    /// @notice Auto-incrementing id assigned to the next proposal.
+    uint256 public nextProposalId = 1;
+
+    /// @notice Timestamp after which `token` may be withdrawn or used in open P2P swaps.
+    mapping(address token => uint256 lockUntil) public tokenLockUntil;
+    /// @notice Lock proposals keyed by proposal id.
+    mapping(uint256 proposalId => OTCTypes.LockProposal) public lockProposals;
+    /// @inheritdoc IOTCClientVault
+    OTCTypes.SwapAccessLevel public override swapAccessLevel;
+
+    mapping(uint256 proposalId => OTCTypes.DeliveryProposal) public deliveryProposals;
+    mapping(uint256 proposalId => OTCTypes.SwapProposal) public swapProposals;
+
+    modifier onlyFactoryAdmin() {
+        _onlyFactoryAdmin();
+        _;
+    }
+
+    modifier onlyAuthorized() {
+        _onlyAuthorized();
+        _;
+    }
+
+    constructor(address factory_, address client_) Ownable(client_) {
+        require(factory_ != address(0), InvalidAddress());
+        factory = factory_;
+        swapAccessLevel = OTCTypes.SwapAccessLevel.ManagedP2P;
+    }
+
+    /// @inheritdoc IOTCClientVault
+    receive() external payable override {}
+
+    /// @inheritdoc IOTCClientVault
+    function deposit(address token, uint256 amount) external override nonReentrant {
+        require(token != address(0), InvalidAddress());
+        require(amount > 0, InvalidAmount());
+
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        emit Deposited(msg.sender, token, amount);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function withdraw(address token, uint256 amount, address to) external override onlyOwner nonReentrant {
+        require(token != address(0), InvalidAddress());
+        require(amount > 0, InvalidAmount());
+        require(to != address(0), InvalidAddress());
+        _requireUnlocked(token);
+
+        IERC20(token).safeTransfer(to, amount);
+        emit Withdrawn(to, token, amount);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function withdrawAll(address token, address to) external override onlyOwner nonReentrant {
+        require(token != address(0), InvalidAddress());
+        require(to != address(0), InvalidAddress());
+        _requireUnlocked(token);
+
+        uint256 amount = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(to, amount);
+        emit Withdrawn(to, token, amount);
+    }
+
+    // ── Lock proposals ──────────────────────────────────────────────────────────
+
+    /// @inheritdoc IOTCClientVault
+    function proposeLock(address token, uint256 duration, uint256 deadline)
+        external
+        override
+        onlyFactoryAdmin
+        returns (uint256 proposalId)
+    {
+        require(token != address(0), InvalidAddress());
+        require(
+            duration <= OTCConstants.MAX_LOCK_DURATION, LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
+        );
+        require(deadline > block.timestamp, InvalidDeadline());
+
+        proposalId = _nextProposalId();
+        uint256 newLockUntil = block.timestamp + duration;
+        OTCTypes.LockProposal storage p = lockProposals[proposalId];
+        p.token = token;
+        p.duration = duration;
+        p.newLockUntil = newLockUntil;
+        p.deadline = deadline;
+
+        emit LockProposed(proposalId, token, newLockUntil);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function acceptLockProposal(uint256 proposalId) external override onlyOwner nonReentrant {
+        OTCTypes.LockProposal storage p = lockProposals[proposalId];
+        _requireActive(p.deadline, p.executed, p.cancelled);
+
+        uint256 lockUntil = tokenLockUntil[p.token];
+        if (p.newLockUntil > lockUntil) {
+            tokenLockUntil[p.token] = p.newLockUntil;
+            lockUntil = p.newLockUntil;
+        }
+        p.clientApproved = true;
+        p.executed = true;
+
+        emit LockAccepted(proposalId, p.token, lockUntil);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function cancelLockProposal(uint256 proposalId) external override onlyAuthorized {
+        OTCTypes.LockProposal storage p = lockProposals[proposalId];
+        require(p.deadline != 0, InvalidProposal());
+        _requireNotExecutedOrCancelled(p.executed, p.cancelled);
+        p.cancelled = true;
+        emit ProposalCancelled(proposalId);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function adminUnlock(address token) external override onlyFactoryAdmin {
+        require(token != address(0), InvalidAddress());
+        uint256 previousLockUntil = tokenLockUntil[token];
+        tokenLockUntil[token] = block.timestamp;
+        emit TokenUnlockedByAdmin(token, previousLockUntil);
+    }
+
+    // ── Delivery proposals ──────────────────────────────────────────────────────
+
+    /// @inheritdoc IOTCClientVault
+    function proposeDelivery(OTCTypes.DeliveryProposalParams calldata params, OTCTypes.ExtraFee calldata extraFee)
+        external
+        override
+        onlyFactoryAdmin
+        returns (uint256 proposalId)
+    {
+        _validateDeliveryBase(
+            params.token, params.amount, params.expectedReceivedToken, params.minExpectedReceivedAmount, params.deadline
+        );
+        if (params.useAllowanceCall) {
+            _validateAllowanceDelivery(params.deliveryAddress, params.target, params.callData);
+        } else {
+            _validateDirectDelivery(
+                params.deliveryAddress, params.target, params.callData, params.expectedReceivedToken
+            );
+        }
+        _validateExtraFee(extraFee);
+
+        proposalId = _nextProposalId();
+        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        p.useAllowanceCall = params.useAllowanceCall;
+        p.feeMode = params.feeMode;
+        p.token = params.token;
+        p.amount = params.amount;
+        p.deliveryAddress = params.deliveryAddress;
+        p.target = params.target;
+        p.callData = params.callData;
+        p.expectedReceivedToken = params.expectedReceivedToken;
+        p.minExpectedReceivedAmount = params.minExpectedReceivedAmount;
+        p.deadline = params.deadline;
+        p.feeSnapshot = _feeSnapshot();
+        p.extraFee = extraFee;
+        p.adminApproved = true;
+
+        emit DeliveryProposed(proposalId, p.token, p.amount, p.target);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function acceptDeliveryProposal(uint256 proposalId) external override onlyOwner {
+        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        _requireActive(p.deadline, p.executed, p.cancelled);
+        p.clientApproved = true;
+        emit DeliveryAccepted(proposalId);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function executeDelivery(uint256 proposalId) external override nonReentrant {
+        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        _requireActive(p.deadline, p.executed, p.cancelled);
+        require(p.clientApproved, ClientNotApproved());
+        require(p.adminApproved, AdminNotApproved());
+
+        (uint256 netAmount, uint256 feeAmount,) = _feeAmounts(p.amount, p.feeSnapshot.deliveryFeeBps, p.feeMode);
+        p.executed = true;
+        if (p.useAllowanceCall) {
+            _executeAllowanceCallDelivery(p, netAmount);
+        } else {
+            _executeDirectDelivery(p, netAmount);
+        }
+
+        _chargeFee(p.token, feeAmount, p.feeSnapshot);
+        _chargeExtraFee(p.extraFee);
+        emit DeliveryExecuted(proposalId, p.token, p.target, p.expectedReceivedToken, p.minExpectedReceivedAmount);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function cancelDeliveryProposal(uint256 proposalId) external override onlyAuthorized {
+        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        require(p.deadline != 0, InvalidProposal());
+        _requireNotExecutedOrCancelled(p.executed, p.cancelled);
+        p.cancelled = true;
+        emit ProposalCancelled(proposalId);
+    }
+
+    // ── Swap proposals ──────────────────────────────────────────────────────────
+
+    /// @inheritdoc IOTCClientVault
+    function setSwapAccessLevel(OTCTypes.SwapAccessLevel newLevel) external override onlyOwner {
+        OTCTypes.SwapAccessLevel oldLevel = swapAccessLevel;
+        swapAccessLevel = newLevel;
+        emit SwapAccessLevelUpdated(oldLevel, newLevel);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function createSwapProposal(OTCTypes.SwapProposalParams calldata params, OTCTypes.ExtraFee calldata extraFee)
+        external
+        override
+        returns (uint256 proposalId)
+    {
+        _validateSwapProposal(params);
+        _validateExtraFee(extraFee);
+
+        proposalId = _nextProposalId();
+        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        p.level = params.level;
+        p.feeMode = _isFactoryAdmin(msg.sender) ? params.feeMode : OTCTypes.FeeMode.Inclusive;
+        p.proposer = msg.sender;
+        p.counterparty = params.counterparty;
+        p.tokenOut = params.tokenOut;
+        p.amountOut = params.amountOut;
+        p.tokenIn = params.tokenIn;
+        p.amountIn = params.amountIn;
+        p.deadline = params.deadline;
+        p.feeSnapshot = _feeSnapshot();
+        p.extraFee = extraFee;
+        _approveSwapRole(p, msg.sender);
+
+        emit SwapProposed(
+            proposalId,
+            params.level,
+            msg.sender,
+            params.counterparty,
+            params.tokenOut,
+            params.tokenIn,
+            params.amountOut,
+            params.amountIn
+        );
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function approveSwap(uint256 proposalId) external override {
+        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        _requireActive(p.deadline, p.executed, p.cancelled);
+        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
+            _requireUnlocked(p.tokenOut);
+        }
+        _approveSwapRole(p, msg.sender);
+        emit SwapApproved(proposalId, msg.sender);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function executeSwap(uint256 proposalId) external override nonReentrant {
+        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        _requireActive(p.deadline, p.executed, p.cancelled);
+        _autoApproveSwapRole(p, msg.sender);
+        _requireSwapApprovals(p);
+
+        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
+            _requireUnlocked(p.tokenOut);
+        }
+
+        p.executed = true;
+        uint16 feeBps =
+            p.level == OTCTypes.SwapAccessLevel.OpenP2P ? p.feeSnapshot.openP2PFeeBps : p.feeSnapshot.takerFeeBps;
+        (,, uint256 grossAmount) = _feeAmounts(p.amountIn, feeBps, p.feeMode);
+
+        IERC20(p.tokenIn).safeTransferFrom(p.counterparty, address(this), grossAmount);
+        IERC20(p.tokenOut).safeTransfer(p.counterparty, p.amountOut);
+
+        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
+            (, uint256 feeAmount,) = _feeAmounts(p.amountIn, p.feeSnapshot.openP2PFeeBps, p.feeMode);
+            _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
+        } else {
+            _inheritLock(p.tokenOut, p.tokenIn);
+            (, uint256 feeAmount,) = _feeAmounts(p.amountIn, p.feeSnapshot.takerFeeBps, p.feeMode);
+            _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
+        }
+
+        _chargeExtraFee(p.extraFee);
+        emit SwapExecuted(proposalId);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function cancelSwapProposal(uint256 proposalId) external override {
+        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        require(p.deadline != 0, InvalidProposal());
+        require(_isClientAdminOrOwner(msg.sender) || msg.sender == p.counterparty, NotAuthorized());
+        _requireNotExecutedOrCancelled(p.executed, p.cancelled);
+        p.cancelled = true;
+        emit ProposalCancelled(proposalId);
+    }
+
+    function _executeDirectDelivery(OTCTypes.DeliveryProposal storage p, uint256 netAmount) internal {
+        IERC20(p.token).safeTransfer(p.deliveryAddress, netAmount);
+    }
+
+    function _executeAllowanceCallDelivery(OTCTypes.DeliveryProposal storage p, uint256 netAmount) internal {
+        uint256 receivedBefore;
+        if (p.expectedReceivedToken != address(0)) {
+            receivedBefore = IERC20(p.expectedReceivedToken).balanceOf(address(this));
+        }
+
+        IERC20(p.token).forceApprove(p.deliveryAddress, 0);
+        IERC20(p.token).forceApprove(p.deliveryAddress, netAmount);
+
+        (bool ok,) = p.target.call(p.callData);
+        require(ok, DeliveryCallFailed());
+
+        IERC20(p.token).forceApprove(p.deliveryAddress, 0);
+
+        if (p.expectedReceivedToken != address(0)) {
+            uint256 receivedAfter = IERC20(p.expectedReceivedToken).balanceOf(address(this));
+            uint256 received = receivedAfter - receivedBefore;
+            require(
+                received >= p.minExpectedReceivedAmount, InsufficientReceived(received, p.minExpectedReceivedAmount)
+            );
+            _inheritLock(p.token, p.expectedReceivedToken);
+        }
+    }
+
+    function _inheritLock(address tokenOut, address tokenIn) internal {
+        uint256 outLock = tokenLockUntil[tokenOut];
+        if (outLock > tokenLockUntil[tokenIn]) {
+            tokenLockUntil[tokenIn] = outLock;
+        }
+    }
+
+    function _feeAmounts(uint256 amount, uint16 feeBps, OTCTypes.FeeMode feeMode)
+        internal
+        pure
+        returns (uint256 netAmount, uint256 feeAmount, uint256 grossAmount)
+    {
+        feeAmount = amount * feeBps / OTCConstants.MAX_FEE_BPS;
+        if (feeMode == OTCTypes.FeeMode.Gross) {
+            netAmount = amount;
+            grossAmount = amount + feeAmount;
+        } else {
+            netAmount = amount - feeAmount;
+            grossAmount = amount;
+        }
+    }
+
+    function _chargeFee(address token, uint256 operatorFee, OTCTypes.FeeSnapshot memory snapshot) internal {
+        if (operatorFee == 0) return;
+
+        uint256 protocolFee = operatorFee * snapshot.protocolFeeShareBps / OTCConstants.MAX_FEE_BPS;
+        uint256 operatorNetFee = operatorFee - protocolFee;
+
+        if (protocolFee > 0) IERC20(token).safeTransfer(snapshot.protocolFeeReceiver, protocolFee);
+        if (operatorNetFee > 0) IERC20(token).safeTransfer(snapshot.operatorFeeReceiver, operatorNetFee);
+    }
+
+    function _chargeExtraFee(OTCTypes.ExtraFee memory extraFee) internal {
+        if (extraFee.amount == 0) return;
+        IERC20(extraFee.token).safeTransfer(extraFee.receiver, extraFee.amount);
+    }
+
+    function _validateDeliveryBase(
+        address token,
+        uint256 amount,
+        address expectedReceivedToken,
+        uint256 minExpectedReceivedAmount,
+        uint256 deadline
+    ) internal view {
+        require(token != address(0), InvalidAddress());
+        require(amount > 0, InvalidAmount());
+        require(deadline > block.timestamp, InvalidDeadline());
+        if (expectedReceivedToken == address(0)) {
+            require(minExpectedReceivedAmount == 0, InvalidExpectedAmount());
+        }
+    }
+
+    function _validateAllowanceDelivery(address deliveryAddress, address target, bytes calldata callData)
+        internal
+        pure
+    {
+        require(
+            deliveryAddress != address(0) && target != address(0) && callData.length > 0,
+            AllowanceDeliveryInvalidFields()
+        );
+    }
+
+    function _validateDirectDelivery(
+        address deliveryAddress,
+        address target,
+        bytes calldata callData,
+        address expectedReceivedToken
+    ) internal pure {
+        require(deliveryAddress != address(0), InvalidAddress());
+        require(
+            target == address(0) && callData.length == 0 && expectedReceivedToken == address(0),
+            DirectDeliveryInvalidFields()
+        );
+    }
+
+    function _validateSwap(address tokenOut, uint256 amountOut, address tokenIn, uint256 amountIn, uint256 deadline)
+        internal
+        view
+    {
+        require(tokenOut != address(0) && tokenIn != address(0), InvalidSwapTokens());
+        require(amountOut > 0 && amountIn > 0, InvalidSwapAmounts());
+        require(deadline > block.timestamp, InvalidDeadline());
+    }
+
+    function _validateSwapProposal(OTCTypes.SwapProposalParams calldata params) internal view {
+        require(params.level != OTCTypes.SwapAccessLevel.None, InvalidSwapLevel());
+        require(uint8(params.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
+        require(params.counterparty != address(0), InvalidAddress());
+        _validateSwap(params.tokenOut, params.amountOut, params.tokenIn, params.amountIn, params.deadline);
+
+        if (params.level == OTCTypes.SwapAccessLevel.SupplierOnly) {
+            require(_isFactoryAdmin(msg.sender), NotFactoryAdmin());
+        } else if (params.level == OTCTypes.SwapAccessLevel.ManagedP2P) {
+            require(_isSwapParticipant(msg.sender, params.counterparty, true), NotSwapParticipant());
+        } else {
+            require(_isSwapParticipant(msg.sender, params.counterparty, false), NotSwapParticipant());
+            _requireUnlocked(params.tokenOut);
+        }
+    }
+
+    function _approveSwapRole(OTCTypes.SwapProposal storage p, address approver) internal {
+        bool approved;
+
+        if (_isFactoryAdmin(approver)) {
+            p.adminApproved = true;
+            approved = true;
+        }
+
+        if (approver == owner()) {
+            p.clientApproved = true;
+            approved = true;
+        }
+
+        if (approver == p.counterparty) {
+            p.counterpartyApproved = true;
+            approved = true;
+        }
+
+        require(approved, NotSwapParticipant());
+    }
+
+    function _autoApproveSwapRole(OTCTypes.SwapProposal storage p, address approver) internal {
+        if (_isFactoryAdmin(approver)) {
+            p.adminApproved = true;
+        }
+        if (approver == owner()) {
+            p.clientApproved = true;
+        }
+        if (approver == p.counterparty) {
+            p.counterpartyApproved = true;
+        }
+    }
+
+    function _requireSwapApprovals(OTCTypes.SwapProposal storage p) internal view {
+        require(uint8(p.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
+        require(p.clientApproved, ClientNotApproved());
+        require(p.counterpartyApproved, CounterpartyNotApproved());
+
+        if (p.level != OTCTypes.SwapAccessLevel.OpenP2P) {
+            require(p.adminApproved, AdminNotApproved());
+        }
+    }
+
+    function _isSwapParticipant(address account, address counterparty, bool includeAdmin) internal view returns (bool) {
+        return account == owner() || account == counterparty || (includeAdmin && _isFactoryAdmin(account));
+    }
+
+    function _validateExtraFee(OTCTypes.ExtraFee calldata extraFee) internal pure {
+        if (extraFee.amount == 0) {
+            require(extraFee.token == address(0), InvalidExtraFeeToken());
+            require(extraFee.receiver == address(0), InvalidExtraFeeReceiver());
+            return;
+        }
+        require(extraFee.token != address(0), InvalidExtraFeeToken());
+        require(extraFee.receiver != address(0), InvalidExtraFeeReceiver());
+    }
+
+    function _requireActive(uint256 deadline, bool executed, bool cancelled) internal view {
+        require(deadline != 0, InvalidProposal());
+        require(!executed, ProposalAlreadyExecuted());
+        require(!cancelled, ProposalAlreadyCancelled());
+        require(block.timestamp <= deadline, ProposalExpired(deadline, block.timestamp));
+    }
+
+    function _requireNotExecutedOrCancelled(bool executed, bool cancelled) internal pure {
+        require(!executed, ProposalAlreadyExecuted());
+        require(!cancelled, ProposalAlreadyCancelled());
+    }
+
+    function _requireUnlocked(address token) internal view {
+        uint256 unlocksAt = tokenLockUntil[token];
+        require(block.timestamp >= unlocksAt, TokenLocked(token, unlocksAt));
+    }
+
+    function _onlyFactoryAdmin() internal view {
+        require(_isFactoryAdmin(msg.sender), NotFactoryAdmin());
+    }
+
+    function _onlyAuthorized() internal view {
+        require(_isClientAdminOrOwner(msg.sender), NotAuthorized());
+    }
+
+    function _isClientAdminOrOwner(address account) internal view returns (bool) {
+        IOTCOperatorFactory operatorFactory = IOTCOperatorFactory(factory);
+        return account == owner() || account == operatorFactory.admin() || account == operatorFactory.owner();
+    }
+
+    function _isFactoryAdmin(address account) internal view returns (bool) {
+        return account == IOTCOperatorFactory(factory).admin();
+    }
+
+    function _feeSnapshot() internal view returns (OTCTypes.FeeSnapshot memory) {
+        return IOTCOperatorFactory(factory).getCurrentFeeSnapshot();
+    }
+
+    function _nextProposalId() internal returns (uint256 proposalId) {
+        proposalId = nextProposalId++;
+    }
+}
