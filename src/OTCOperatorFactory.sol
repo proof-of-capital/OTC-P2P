@@ -27,7 +27,7 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
 
     /// @notice Default lock duration in seconds for each token address.
     mapping(address token => uint256 duration) public defaultLockDuration;
-    /// @notice Ordered list of tokens that have ever had a default lock configured.
+    /// @notice Ordered list of tokens that currently have a non-zero default lock configured.
     address[] public defaultLockTokens;
     /// @notice Tracks whether a token is already present in `defaultLockTokens`.
     mapping(address token => bool isTracked) private isDefaultLockTokenTracked;
@@ -161,12 +161,39 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         require(
             duration <= OTCConstants.MAX_LOCK_DURATION, LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
         );
+        if (duration == 0) {
+            defaultLockDuration[token] = 0;
+            if (isDefaultLockTokenTracked[token]) {
+                _removeDefaultLockToken(token);
+                isDefaultLockTokenTracked[token] = false;
+            }
+            emit DefaultLockDurationUpdated(token, duration);
+            return;
+        }
+
         if (!isDefaultLockTokenTracked[token]) {
             isDefaultLockTokenTracked[token] = true;
             defaultLockTokens.push(token);
         }
         defaultLockDuration[token] = duration;
         emit DefaultLockDurationUpdated(token, duration);
+    }
+
+    function _removeDefaultLockToken(address token) internal {
+        uint256 n = defaultLockTokens.length;
+        for (uint256 i = 0; i < n;) {
+            if (defaultLockTokens[i] == token) {
+                uint256 lastIndex = n - 1;
+                if (i != lastIndex) {
+                    defaultLockTokens[i] = defaultLockTokens[lastIndex];
+                }
+                defaultLockTokens.pop();
+                return;
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function _requireValidFeeConfig(OTCTypes.OperatorFeeConfig memory config) internal pure {

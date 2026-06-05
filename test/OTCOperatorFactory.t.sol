@@ -356,6 +356,49 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(factory.defaultLockDuration(token), 14 days);
     }
 
+    function testSetDefaultLockDuration_ZeroDurationRemovesTokenAndCanBeAddedAgain() public {
+        address token = address(0xABCD);
+        vm.startPrank(operatorOwner);
+        factory.setDefaultLockDuration(token, 7 days);
+        factory.setDefaultLockDuration(token, 0);
+        vm.stopPrank();
+
+        assertEq(factory.defaultLockDuration(token), 0);
+        assertEq(factory.getDefaultLockTokensCount(), 0);
+
+        vm.prank(operatorOwner);
+        factory.setDefaultLockDuration(token, 30 days);
+
+        assertEq(factory.getDefaultLockTokensCount(), 1);
+        assertEq(factory.defaultLockTokens(0), token);
+        assertEq(factory.defaultLockDuration(token), 30 days);
+    }
+
+    function testSetDefaultLockDurationsBatch_ZeroDurationRemovesAndSkipsTracking() public {
+        address tokenA = address(0xAAAA);
+        address tokenB = address(0xBBBB);
+        address tokenC = address(0xCCCC);
+
+        vm.startPrank(operatorOwner);
+        factory.setDefaultLockDuration(tokenA, 7 days);
+        factory.setDefaultLockDuration(tokenB, 14 days);
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = tokenB;
+        tokens[1] = tokenC;
+        uint256[] memory durations = new uint256[](2);
+        durations[0] = 0;
+        durations[1] = 0;
+        factory.setDefaultLockDurationsBatch(tokens, durations);
+        vm.stopPrank();
+
+        assertEq(factory.defaultLockDuration(tokenA), 7 days);
+        assertEq(factory.defaultLockDuration(tokenB), 0);
+        assertEq(factory.defaultLockDuration(tokenC), 0);
+        assertEq(factory.getDefaultLockTokensCount(), 1);
+        assertEq(factory.defaultLockTokens(0), tokenA);
+    }
+
     function testDeployClientVault_AppliesDefaultLockDurations() public {
         address tokenA = address(0xAAAA);
         address tokenB = address(0xBBBB);
@@ -376,10 +419,9 @@ contract OTCOperatorFactoryTest is Test {
         address vault = factory.deployClientVault(client);
         OTCClientVault deployedVault = OTCClientVault(payable(vault));
 
-        assertEq(factory.getDefaultLockTokensCount(), 3);
+        assertEq(factory.getDefaultLockTokensCount(), 2);
         assertEq(factory.defaultLockTokens(0), tokenA);
         assertEq(factory.defaultLockTokens(1), tokenB);
-        assertEq(factory.defaultLockTokens(2), tokenZero);
         assertEq(deployedVault.tokenLockUntil(tokenA), block.timestamp + 7 days);
         assertEq(deployedVault.tokenLockUntil(tokenB), block.timestamp + 14 days);
         assertEq(deployedVault.tokenLockUntil(tokenZero), 0);
