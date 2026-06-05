@@ -173,7 +173,6 @@ contract OTCClientVault is
     function proposeDelivery(OTCTypes.DeliveryProposalParams calldata params, OTCTypes.ExtraFee calldata extraFee)
         external
         override
-        onlyFactoryAdmin
         returns (uint256 proposalId)
     {
         _validateDeliveryBase(
@@ -189,15 +188,16 @@ contract OTCClientVault is
         _validateExtraFee(extraFee);
 
         proposalId = _nextProposalId();
-        _storeDeliveryProposal(proposalId, params, extraFee);
+        OTCTypes.DeliveryProposal storage p = _storeDeliveryProposal(proposalId, params, extraFee);
+        _approveDeliveryRole(p, msg.sender);
         emit DeliveryProposed(proposalId, params.token, params.amount, params.target);
     }
 
     /// @inheritdoc IOTCClientVault
-    function acceptDeliveryProposal(uint256 proposalId) external override onlyOwner {
+    function acceptDeliveryProposal(uint256 proposalId) external override {
         OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
-        p.clientApproved = true;
+        _approveDeliveryRole(p, msg.sender);
         emit DeliveryAccepted(proposalId);
     }
 
@@ -205,8 +205,16 @@ contract OTCClientVault is
     function executeDelivery(uint256 proposalId) external override nonReentrant {
         OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _autoApproveDeliveryRole(p, msg.sender);
         require(p.clientApproved, ClientNotApproved());
-        require(p.adminApproved, AdminNotApproved());
+
+        if (!p.adminApproved) {
+            if (swapAccessLevel == OTCTypes.SwapAccessLevel.OpenP2P) {
+                _requireUnlocked(p.token);
+            } else {
+                revert AdminNotApproved();
+            }
+        }
 
         (uint256 netAmount, uint256 feeAmount,) = _feeAmounts(p.amount, p.feeSnapshot.deliveryFeeBps, p.feeMode);
         p.executed = true;
@@ -477,6 +485,31 @@ contract OTCClientVault is
         require(approved, NotSwapParticipant());
     }
 
+    function _approveDeliveryRole(OTCTypes.DeliveryProposal storage p, address approver) internal {
+        bool approved;
+
+        if (approver == owner()) {
+            p.clientApproved = true;
+            approved = true;
+        }
+
+        if (_isFactoryAdminOrOwner(approver)) {
+            p.adminApproved = true;
+            approved = true;
+        }
+
+        require(approved, NotAuthorized());
+    }
+
+    function _autoApproveDeliveryRole(OTCTypes.DeliveryProposal storage p, address approver) internal {
+        if (approver == owner()) {
+            p.clientApproved = true;
+        }
+        if (_isFactoryAdminOrOwner(approver)) {
+            p.adminApproved = true;
+        }
+    }
+
     function _autoApproveSwapRole(OTCTypes.SwapProposal storage p, address approver) internal {
         if (_isFactoryAdmin(approver)) {
             p.adminApproved = true;
@@ -543,6 +576,11 @@ contract OTCClientVault is
         return account == owner() || account == operatorFactory.admin() || account == operatorFactory.owner();
     }
 
+    function _isFactoryAdminOrOwner(address account) internal view returns (bool) {
+        IOTCOperatorFactory operatorFactory = IOTCOperatorFactory(factory);
+        return account == operatorFactory.admin() || account == operatorFactory.owner();
+    }
+
     function _isFactoryAdmin(address account) internal view returns (bool) {
         return account == IOTCOperatorFactory(factory).admin();
     }
@@ -555,8 +593,8 @@ contract OTCClientVault is
         uint256 proposalId,
         OTCTypes.DeliveryProposalParams calldata params,
         OTCTypes.ExtraFee calldata extraFee
-    ) internal {
-        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
+    ) internal returns (OTCTypes.DeliveryProposal storage p) {
+        p = _deliveryProposals[proposalId];
         p.useAllowanceCall = params.useAllowanceCall;
         p.feeMode = params.feeMode;
         p.token = params.token;
@@ -569,7 +607,6 @@ contract OTCClientVault is
         p.deadline = params.deadline;
         p.feeSnapshot = _feeSnapshot();
         p.extraFee = extraFee;
-        p.adminApproved = true;
     }
 
     function _storeSwapProposal(

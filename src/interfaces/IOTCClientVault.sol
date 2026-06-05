@@ -79,7 +79,8 @@ interface IOTCClientVault {
 
     // ── Delivery proposals ──────────────────────────────────────────────────────
 
-    /// @notice Admin creates a delivery proposal.
+    /// @notice Creates a delivery proposal.
+    /// @dev Callable by the client, factory admin, or factory owner.
     /// @param params Delivery parameters.
     /// @param extraFee Optional extra fee charged at execution.
     /// @return proposalId Id of the created proposal.
@@ -87,11 +88,13 @@ interface IOTCClientVault {
         external
         returns (uint256 proposalId);
 
-    /// @notice Client approves a delivery proposal.
+    /// @notice Approves a delivery proposal as the client side or operator side.
+    /// @dev Client, factory admin, and factory owner may call this function.
     /// @param proposalId Proposal to approve.
     function acceptDeliveryProposal(uint256 proposalId) external;
 
-    /// @notice Anyone executes a delivery proposal once both approvals are in place.
+    /// @notice Executes a delivery proposal once required approvals are in place.
+    /// @dev In OpenP2P mode, missing operator-side approval is tolerated when the delivery token is unlocked.
     /// @param proposalId Proposal to execute.
     function executeDelivery(uint256 proposalId) external;
 

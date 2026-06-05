@@ -356,6 +356,160 @@ contract OTCCoverageGapsTest is Test {
         vault.cancelDeliveryProposal(id);
     }
 
+    function testDeliveryExecute_OpenP2P_UnlockedSkipsAdminApproval() public {
+        _deposit(address(usdt), 1_000);
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        vm.prank(client);
+        vault.executeDelivery(id);
+
+        assertEq(usdt.balanceOf(recipient), 100);
+    }
+
+    function testDeliveryExecute_OpenP2P_LockedWithoutAdminApprovalReverts() public {
+        _deposit(address(usdt), 1_000);
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 lockId = _proposeLock(address(usdt), 1 days);
+        vm.prank(client);
+        vault.acceptLockProposal(lockId);
+
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        uint256 unlocksAt = vault.tokenLockUntil(address(usdt));
+        vm.prank(client);
+        vm.expectRevert(abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(usdt), unlocksAt));
+        vault.executeDelivery(id);
+    }
+
+    function testDeliveryExecute_DeliveryOnlyWithoutAdminApprovalReverts() public {
+        _deposit(address(usdt), 1_000);
+
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.AdminNotApproved.selector);
+        vault.executeDelivery(id);
+    }
+
+    function testDeliveryExecute_AutoApprovesOperatorRoleFromExecutor() public {
+        _deposit(address(usdt), 1_000);
+
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        vm.prank(operatorOwner);
+        vault.executeDelivery(id);
+
+        OTCTypes.DeliveryProposal memory proposal = vault.deliveryProposals(id);
+        assertTrue(proposal.adminApproved);
+        assertTrue(proposal.executed);
+        assertEq(usdt.balanceOf(recipient), 100);
+    }
+
+    function testDeliveryApprovalRoles_OperatorOwnerAndAdminCanApprove() public {
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        OTCTypes.DeliveryProposal memory first = vault.deliveryProposals(id);
+        assertTrue(first.clientApproved);
+        assertFalse(first.adminApproved);
+
+        vm.prank(operatorOwner);
+        vault.acceptDeliveryProposal(id);
+
+        OTCTypes.DeliveryProposal memory afterOwnerApprove = vault.deliveryProposals(id);
+        assertTrue(afterOwnerApprove.adminApproved);
+
+        vm.prank(operatorAdmin);
+        vault.acceptDeliveryProposal(id);
+        OTCTypes.DeliveryProposal memory afterAdminApprove = vault.deliveryProposals(id);
+        assertTrue(afterAdminApprove.adminApproved);
+    }
+
+    function testDeliveryApprovalRoles_RevertsForStranger() public {
+        uint256 id = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+
+        vm.prank(stranger);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.acceptDeliveryProposal(id);
+    }
+
     function testDeliveryBase_RevertsInvalidExpectedAmount() public {
         vm.prank(operatorAdmin);
         vm.expectRevert(IOTCClientVaultErrors.InvalidExpectedAmount.selector);
