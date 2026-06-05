@@ -131,7 +131,7 @@ contract OTCP2PTest is Test {
         assertEq(usdt.balanceOf(recipient), 100);
 
         vm.prank(clientA);
-        vaultA.withdrawAll(address(usdt), recipient);
+        vaultA.withdraw(address(usdt), type(uint256).max, recipient);
         assertEq(usdt.balanceOf(recipient), 1_000);
 
         _deposit(vaultA, usdt, clientA, 1_000);

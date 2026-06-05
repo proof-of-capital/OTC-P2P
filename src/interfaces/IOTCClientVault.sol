@@ -50,14 +50,9 @@ interface IOTCClientVault {
 
     /// @notice Withdraws `amount` of `token` to `to`. Token must be unlocked.
     /// @param token ERC-20 token to withdraw.
-    /// @param amount Amount to withdraw; must be greater than zero.
+    /// @param amount Amount to withdraw; must be greater than zero, or `type(uint256).max` to withdraw all.
     /// @param to Recipient address; must be non-zero.
     function withdraw(address token, uint256 amount, address to) external;
-
-    /// @notice Withdraws the entire vault balance of `token` to `to`. Token must be unlocked.
-    /// @param token ERC-20 token to withdraw.
-    /// @param to Recipient address; must be non-zero.
-    function withdrawAll(address token, address to) external;
 
     // ── Lock proposals ──────────────────────────────────────────────────────────
 

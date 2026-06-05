@@ -89,21 +89,15 @@ contract OTCClientVault is
     /// @inheritdoc IOTCClientVault
     function withdraw(address token, uint256 amount, address to) external override onlyOwner nonReentrant {
         require(token != address(0), InvalidAddress());
-        require(amount > 0, InvalidAmount());
         require(to != address(0), InvalidAddress());
         _requireUnlocked(token);
 
-        IERC20(token).safeTransfer(to, amount);
-        emit Withdrawn(to, token, amount);
-    }
+        if (amount == type(uint256).max) {
+            amount = IERC20(token).balanceOf(address(this));
+        } else {
+            require(amount > 0, InvalidAmount());
+        }
 
-    /// @inheritdoc IOTCClientVault
-    function withdrawAll(address token, address to) external override onlyOwner nonReentrant {
-        require(token != address(0), InvalidAddress());
-        require(to != address(0), InvalidAddress());
-        _requireUnlocked(token);
-
-        uint256 amount = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransfer(to, amount);
         emit Withdrawn(to, token, amount);
     }

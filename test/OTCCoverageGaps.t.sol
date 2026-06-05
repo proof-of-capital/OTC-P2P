@@ -211,19 +211,19 @@ contract OTCCoverageGapsTest is Test {
         vault.withdraw(address(usdt), 1, address(0));
     }
 
-    function testWithdrawAll_RevertsZeroToken() public {
+    function testWithdraw_RevertsZeroTokenAll() public {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
-        vault.withdrawAll(address(0), recipient);
+        vault.withdraw(address(0), type(uint256).max, recipient);
     }
 
-    function testWithdrawAll_RevertsZeroTo() public {
+    function testWithdraw_RevertsZeroToAll() public {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
-        vault.withdrawAll(address(usdt), address(0));
+        vault.withdraw(address(usdt), type(uint256).max, address(0));
     }
 
-    function testWithdrawAll_RevertsTokenLocked() public {
+    function testWithdraw_RevertsTokenLockedAll() public {
         _deposit(address(usdt), 1_000);
         uint256 lockId = _proposeLock(address(usdt), 1 days);
         vm.prank(client);
@@ -232,7 +232,7 @@ contract OTCCoverageGapsTest is Test {
         uint256 unlocksAt = vault.tokenLockUntil(address(usdt));
         vm.prank(client);
         vm.expectRevert(abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(usdt), unlocksAt));
-        vault.withdrawAll(address(usdt), recipient);
+        vault.withdraw(address(usdt), type(uint256).max, recipient);
     }
 
     // ── Group 2: Lock proposal edge cases ────────────────────────────────────────
