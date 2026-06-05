@@ -1001,6 +1001,49 @@ contract OTCCoverageGapsTest is Test {
         vault.approveSwap(swapId);
     }
 
+    function testCancelSwap_OpenP2P_Unlocked_OnlyOwnerOrCounterpartyCanCancel() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 ownerId =
+            _createSwap(client, OTCTypes.SwapAccessLevel.OpenP2P, counterparty, address(usdt), 100, address(weth), 100);
+        vm.prank(client);
+        vault.cancelSwapProposal(ownerId);
+        assertTrue(vault.swapProposals(ownerId).cancelled);
+
+        uint256 adminId =
+            _createSwap(client, OTCTypes.SwapAccessLevel.OpenP2P, counterparty, address(usdt), 100, address(weth), 100);
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.cancelSwapProposal(adminId);
+
+        uint256 factoryOwnerId =
+            _createSwap(client, OTCTypes.SwapAccessLevel.OpenP2P, counterparty, address(usdt), 100, address(weth), 100);
+        vm.prank(operatorOwner);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.cancelSwapProposal(factoryOwnerId);
+
+        uint256 counterpartyId =
+            _createSwap(client, OTCTypes.SwapAccessLevel.OpenP2P, counterparty, address(usdt), 100, address(weth), 100);
+        vm.prank(counterparty);
+        vault.cancelSwapProposal(counterpartyId);
+        assertTrue(vault.swapProposals(counterpartyId).cancelled);
+    }
+
+    function testCancelSwap_OpenP2P_Locked_AdminCanCancel() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 swapId =
+            _createSwap(client, OTCTypes.SwapAccessLevel.OpenP2P, counterparty, address(usdt), 100, address(weth), 100);
+
+        uint256 lockId = _proposeLock(address(usdt), 1 days);
+        vm.prank(client);
+        vault.acceptLockProposal(lockId);
+
+        vm.prank(operatorAdmin);
+        vault.cancelSwapProposal(swapId);
+        assertTrue(vault.swapProposals(swapId).cancelled);
+    }
+
     function testCancelSwap_RevertsInvalidProposal() public {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.InvalidProposal.selector);

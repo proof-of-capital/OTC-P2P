@@ -120,6 +120,8 @@ interface IOTCClientVault {
     /// @notice Executes a unified swap after required approvals; caller approval is auto-counted when applicable.
     function executeSwap(uint256 proposalId) external;
 
-    /// @notice Cancels a unified swap proposal. Callable by client, admin, factory owner, or counterparty.
+    /// @notice Cancels a unified swap proposal.
+    /// @dev In OpenP2P mode with an unlocked `tokenOut`, only the client or the proposal counterparty may cancel.
+    /// @dev In all other cases, the client, factory admin, factory owner, or counterparty may cancel.
     function cancelSwapProposal(uint256 proposalId) external;
 }

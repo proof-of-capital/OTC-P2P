@@ -324,7 +324,11 @@ contract OTCClientVault is
     function cancelSwapProposal(uint256 proposalId) external override {
         OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         require(p.deadline != 0, InvalidProposal());
-        require(_isClientAdminOrOwner(msg.sender) || msg.sender == p.counterparty, NotAuthorized());
+        if (swapAccessLevel == OTCTypes.SwapAccessLevel.OpenP2P && _isUnlocked(p.tokenOut)) {
+            require(msg.sender == owner() || msg.sender == p.counterparty, NotAuthorized());
+        } else {
+            require(_isClientAdminOrOwner(msg.sender) || msg.sender == p.counterparty, NotAuthorized());
+        }
         _requireNotExecutedOrCancelled(p.executed, p.cancelled);
         p.cancelled = true;
         emit ProposalCancelled(proposalId);
