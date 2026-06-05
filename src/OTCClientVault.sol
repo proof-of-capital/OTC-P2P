@@ -230,10 +230,15 @@ contract OTCClientVault is
     }
 
     /// @inheritdoc IOTCClientVault
-    function cancelDeliveryProposal(uint256 proposalId) external override onlyAuthorized {
+    function cancelDeliveryProposal(uint256 proposalId) external override {
         OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         require(p.deadline != 0, InvalidProposal());
         _requireNotExecutedOrCancelled(p.executed, p.cancelled);
+        if (swapAccessLevel == OTCTypes.SwapAccessLevel.OpenP2P && _isUnlocked(p.token)) {
+            require(msg.sender == owner(), NotAuthorized());
+        } else {
+            require(_isClientAdminOrOwner(msg.sender), NotAuthorized());
+        }
         p.cancelled = true;
         emit ProposalCancelled(proposalId);
     }
@@ -553,6 +558,10 @@ contract OTCClientVault is
     function _requireUnlocked(address token) internal view {
         uint256 unlocksAt = tokenLockUntil[token];
         require(block.timestamp >= unlocksAt, TokenLocked(token, unlocksAt));
+    }
+
+    function _isUnlocked(address token) internal view returns (bool) {
+        return block.timestamp >= tokenLockUntil[token];
     }
 
     function _onlyFactoryAdmin() internal view {

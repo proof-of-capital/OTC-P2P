@@ -356,6 +356,46 @@ contract OTCCoverageGapsTest is Test {
         vault.cancelDeliveryProposal(id);
     }
 
+    function testCancelDelivery_OpenP2P_Unlocked_OnlyClientCanCancel() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 clientId = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+        vm.prank(client);
+        vault.cancelDeliveryProposal(clientId);
+        assertTrue(vault.deliveryProposals(clientId).cancelled);
+
+        uint256 adminId = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.cancelDeliveryProposal(adminId);
+
+        uint256 ownerId = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+        vm.prank(operatorOwner);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.cancelDeliveryProposal(ownerId);
+    }
+
+    function testCancelDelivery_OpenP2P_Locked_AdminCanCancel() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 lockId = _proposeLock(address(usdt), 1 days);
+        vm.prank(client);
+        vault.acceptLockProposal(lockId);
+
+        uint256 id = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+        vm.prank(operatorAdmin);
+        vault.cancelDeliveryProposal(id);
+        assertTrue(vault.deliveryProposals(id).cancelled);
+    }
+
+    function testCancelDelivery_DeliveryOnly_AdminCanCancel() public {
+        uint256 id = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+
+        vm.prank(operatorOwner);
+        vault.cancelDeliveryProposal(id);
+        assertTrue(vault.deliveryProposals(id).cancelled);
+    }
+
     function testDeliveryExecute_OpenP2P_UnlockedSkipsAdminApproval() public {
         _deposit(address(usdt), 1_000);
         _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);

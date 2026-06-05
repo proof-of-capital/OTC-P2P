@@ -98,7 +98,9 @@ interface IOTCClientVault {
     /// @param proposalId Proposal to execute.
     function executeDelivery(uint256 proposalId) external;
 
-    /// @notice Cancels a delivery proposal. Callable by the client, admin, or factory owner.
+    /// @notice Cancels a delivery proposal.
+    /// @dev In OpenP2P mode with an unlocked delivery token, only the client may cancel.
+    /// @dev In all other cases, the client, factory admin, or factory owner may cancel.
     /// @param proposalId Proposal to cancel.
     function cancelDeliveryProposal(uint256 proposalId) external;
 
