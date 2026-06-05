@@ -82,7 +82,8 @@ interface IOTCClientVault {
             bool cancelled
         );
 
-    /// @notice Transfers `amount` of `token` from the caller into the vault.
+    /// @notice Optional owner-only deposit path using `transferFrom`.
+    /// @dev Users can also fund the vault by directly transferring ERC-20 tokens to the vault address.
     /// @param token ERC-20 token to deposit.
     /// @param amount Amount to deposit; must be greater than zero.
     function deposit(address token, uint256 amount) external;

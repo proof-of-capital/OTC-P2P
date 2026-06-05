@@ -162,7 +162,9 @@ contract OTCClientVault is
     }
 
     /// @inheritdoc IOTCClientVault
-    function deposit(address token, uint256 amount) external override nonReentrant {
+    /// @dev This path is optional and exists to reduce user mistakes with vault addresses.
+    /// Tokens can be funded directly by transferring ERC20 to the vault address.
+    function deposit(address token, uint256 amount) external override onlyOwner nonReentrant {
         require(token != address(0), InvalidAddress());
         require(amount > 0, InvalidAmount());
 

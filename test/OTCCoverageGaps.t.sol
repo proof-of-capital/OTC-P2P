@@ -171,6 +171,28 @@ contract OTCCoverageGapsTest is Test {
         assertEq(address(vault).balance, 1 ether);
     }
 
+    function testDeposit_RevertsNotOwner() public {
+        usdt.mint(stranger, 100);
+        vm.startPrank(stranger);
+        usdt.approve(address(vault), 100);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vault.deposit(address(usdt), 100);
+        vm.stopPrank();
+    }
+
+    function testDirectTransfer_IncreasesVaultBalance() public {
+        usdt.mint(client, 1_000);
+        vm.prank(client);
+        assertTrue(usdt.transfer(address(vault), 1_000));
+
+        assertEq(usdt.balanceOf(address(vault)), 1_000);
+
+        vm.prank(client);
+        vault.withdraw(address(usdt), 400, recipient);
+        assertEq(usdt.balanceOf(recipient), 400);
+        assertEq(usdt.balanceOf(address(vault)), 600);
+    }
+
     function testWithdraw_RevertsZeroToken() public {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
