@@ -890,6 +890,29 @@ contract OTCCoverageGapsTest is Test {
         );
     }
 
+    function testCreateSwap_OpenP2P_AllowsFactoryAdmin() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        vm.prank(operatorAdmin);
+        uint256 swapId = vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.OpenP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        OTCTypes.SwapProposal memory proposal = vault.swapProposals(swapId);
+        assertEq(proposal.proposer, operatorAdmin);
+        assertTrue(proposal.adminApproved);
+    }
+
     function testCreateSwap_RevertsOpenP2PWithLockedToken() public {
         vm.prank(client);
         vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);

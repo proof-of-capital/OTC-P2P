@@ -454,9 +454,8 @@ contract OTCClientVault is
         if (params.level == OTCTypes.SwapAccessLevel.SupplierOnly) {
             require(_isFactoryAdmin(msg.sender), NotFactoryAdmin());
         } else if (params.level == OTCTypes.SwapAccessLevel.ManagedP2P) {
-            require(_isSwapParticipant(msg.sender, params.counterparty, true), NotSwapParticipant());
+            require(_isSwapParticipant(msg.sender, params.counterparty), NotSwapParticipant());
         } else {
-            require(_isSwapParticipant(msg.sender, params.counterparty, false), NotSwapParticipant());
             _requireUnlocked(params.tokenOut);
         }
     }
@@ -529,8 +528,8 @@ contract OTCClientVault is
         }
     }
 
-    function _isSwapParticipant(address account, address counterparty, bool includeAdmin) internal view returns (bool) {
-        return account == owner() || account == counterparty || (includeAdmin && _isFactoryAdmin(account));
+    function _isSwapParticipant(address account, address counterparty) internal view returns (bool) {
+        return account == owner() || account == counterparty || _isFactoryAdmin(account);
     }
 
     function _validateExtraFee(OTCTypes.ExtraFee calldata extraFee) internal pure {
