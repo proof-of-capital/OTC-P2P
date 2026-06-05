@@ -37,50 +37,10 @@ interface IOTCClientVault {
         );
 
     /// @notice Delivery proposal stored under `proposalId`.
-    function deliveryProposals(uint256 proposalId)
-        external
-        view
-        returns (
-            bool useAllowanceCall,
-            OTCTypes.FeeMode feeMode,
-            address token,
-            uint256 amount,
-            address deliveryAddress,
-            address target,
-            bytes memory callData,
-            address expectedReceivedToken,
-            uint256 minExpectedReceivedAmount,
-            uint256 deadline,
-            OTCTypes.FeeSnapshot memory feeSnapshot,
-            OTCTypes.ExtraFee memory extraFee,
-            bool clientApproved,
-            bool adminApproved,
-            bool executed,
-            bool cancelled
-        );
+    function deliveryProposals(uint256 proposalId) external view returns (OTCTypes.DeliveryProposal memory);
 
     /// @notice Swap proposal stored under `proposalId`.
-    function swapProposals(uint256 proposalId)
-        external
-        view
-        returns (
-            OTCTypes.SwapAccessLevel level,
-            OTCTypes.FeeMode feeMode,
-            address proposer,
-            address counterparty,
-            address tokenOut,
-            uint256 amountOut,
-            address tokenIn,
-            uint256 amountIn,
-            uint256 deadline,
-            OTCTypes.FeeSnapshot memory feeSnapshot,
-            OTCTypes.ExtraFee memory extraFee,
-            bool adminApproved,
-            bool clientApproved,
-            bool counterpartyApproved,
-            bool executed,
-            bool cancelled
-        );
+    function swapProposals(uint256 proposalId) external view returns (OTCTypes.SwapProposal memory);
 
     /// @notice Optional owner-only deposit path using `transferFrom`.
     /// @dev Users can also fund the vault by directly transferring ERC-20 tokens to the vault address.

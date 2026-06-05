@@ -436,6 +436,20 @@ contract OTCCoverageGapsTest is Test {
         vault.executeDelivery(id);
     }
 
+    function testDeliveryProposals_ReturnsStruct() public {
+        uint256 id = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+        OTCTypes.DeliveryProposal memory proposal = vault.deliveryProposals(id);
+
+        assertFalse(proposal.useAllowanceCall);
+        assertEq(proposal.token, address(usdt));
+        assertEq(proposal.amount, 100);
+        assertEq(proposal.deliveryAddress, recipient);
+        assertTrue(proposal.adminApproved);
+        assertFalse(proposal.clientApproved);
+        assertFalse(proposal.executed);
+        assertFalse(proposal.cancelled);
+    }
+
     // ── Group 4: Fee edge cases ───────────────────────────────────────────────────
 
     function testChargeFee_ZeroBps() public {
@@ -705,6 +719,25 @@ contract OTCCoverageGapsTest is Test {
         vm.prank(stranger);
         vm.expectRevert(IOTCClientVaultErrors.NotSwapParticipant.selector);
         vault.approveSwap(swapId);
+    }
+
+    function testSwapProposals_ReturnsStruct() public {
+        uint256 swapId = _createSwap(
+            client, OTCTypes.SwapAccessLevel.ManagedP2P, counterparty, address(usdt), 100, address(weth), 120
+        );
+        OTCTypes.SwapProposal memory proposal = vault.swapProposals(swapId);
+
+        assertEq(uint256(proposal.level), uint256(OTCTypes.SwapAccessLevel.ManagedP2P));
+        assertEq(proposal.proposer, client);
+        assertEq(proposal.counterparty, counterparty);
+        assertEq(proposal.tokenOut, address(usdt));
+        assertEq(proposal.amountOut, 100);
+        assertEq(proposal.tokenIn, address(weth));
+        assertEq(proposal.amountIn, 120);
+        assertTrue(proposal.clientApproved);
+        assertFalse(proposal.counterpartyApproved);
+        assertFalse(proposal.executed);
+        assertFalse(proposal.cancelled);
     }
 
     function testCancelSwap_ByCounterparty() public {

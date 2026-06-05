@@ -76,92 +76,6 @@ contract OTCClientVault is
     receive() external payable override {}
 
     /// @inheritdoc IOTCClientVault
-    function deliveryProposals(uint256 proposalId)
-        external
-        view
-        override
-        returns (
-            bool useAllowanceCall,
-            OTCTypes.FeeMode feeMode,
-            address token,
-            uint256 amount,
-            address deliveryAddress,
-            address target,
-            bytes memory callData,
-            address expectedReceivedToken,
-            uint256 minExpectedReceivedAmount,
-            uint256 deadline,
-            OTCTypes.FeeSnapshot memory feeSnapshot,
-            OTCTypes.ExtraFee memory extraFee,
-            bool clientApproved,
-            bool adminApproved,
-            bool executed,
-            bool cancelled
-        )
-    {
-        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
-        useAllowanceCall = p.useAllowanceCall;
-        feeMode = p.feeMode;
-        token = p.token;
-        amount = p.amount;
-        deliveryAddress = p.deliveryAddress;
-        target = p.target;
-        callData = p.callData;
-        expectedReceivedToken = p.expectedReceivedToken;
-        minExpectedReceivedAmount = p.minExpectedReceivedAmount;
-        deadline = p.deadline;
-        feeSnapshot = p.feeSnapshot;
-        extraFee = p.extraFee;
-        clientApproved = p.clientApproved;
-        adminApproved = p.adminApproved;
-        executed = p.executed;
-        cancelled = p.cancelled;
-    }
-
-    /// @inheritdoc IOTCClientVault
-    function swapProposals(uint256 proposalId)
-        external
-        view
-        override
-        returns (
-            OTCTypes.SwapAccessLevel level,
-            OTCTypes.FeeMode feeMode,
-            address proposer,
-            address counterparty,
-            address tokenOut,
-            uint256 amountOut,
-            address tokenIn,
-            uint256 amountIn,
-            uint256 deadline,
-            OTCTypes.FeeSnapshot memory feeSnapshot,
-            OTCTypes.ExtraFee memory extraFee,
-            bool adminApproved,
-            bool clientApproved,
-            bool counterpartyApproved,
-            bool executed,
-            bool cancelled
-        )
-    {
-        OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
-        level = p.level;
-        feeMode = p.feeMode;
-        proposer = p.proposer;
-        counterparty = p.counterparty;
-        tokenOut = p.tokenOut;
-        amountOut = p.amountOut;
-        tokenIn = p.tokenIn;
-        amountIn = p.amountIn;
-        deadline = p.deadline;
-        feeSnapshot = p.feeSnapshot;
-        extraFee = p.extraFee;
-        adminApproved = p.adminApproved;
-        clientApproved = p.clientApproved;
-        counterpartyApproved = p.counterpartyApproved;
-        executed = p.executed;
-        cancelled = p.cancelled;
-    }
-
-    /// @inheritdoc IOTCClientVault
     /// @dev This path is optional and exists to reduce user mistakes with vault addresses.
     /// Tokens can be funded directly by transferring ERC20 to the vault address.
     function deposit(address token, uint256 amount) external override onlyOwner nonReentrant {
@@ -403,6 +317,16 @@ contract OTCClientVault is
         _requireNotExecutedOrCancelled(p.executed, p.cancelled);
         p.cancelled = true;
         emit ProposalCancelled(proposalId);
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function deliveryProposals(uint256 proposalId) external view override returns (OTCTypes.DeliveryProposal memory) {
+        return _deliveryProposals[proposalId];
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function swapProposals(uint256 proposalId) external view override returns (OTCTypes.SwapProposal memory) {
+        return _swapProposals[proposalId];
     }
 
     function _executeDirectDelivery(OTCTypes.DeliveryProposal storage p, uint256 netAmount) internal {
