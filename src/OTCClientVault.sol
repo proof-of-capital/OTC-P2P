@@ -301,20 +301,18 @@ contract OTCClientVault is
         }
 
         p.executed = true;
-        uint16 feeBps =
-            p.level == OTCTypes.SwapAccessLevel.OpenP2P ? p.feeSnapshot.openP2PFeeBps : p.feeSnapshot.takerFeeBps;
-        (,, uint256 grossAmount) = _feeAmounts(p.amountIn, feeBps, p.feeMode);
+        uint256 grossAmount;
+        uint256 feeAmount;
+        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
+            (, feeAmount, grossAmount) = _feeAmounts(p.amountIn, p.feeSnapshot.openP2PFeeBps, p.feeMode);
+        } else {
+            (, feeAmount, grossAmount) = _feeAmounts(p.amountIn, p.feeSnapshot.takerFeeBps, p.feeMode);
+        }
 
         IERC20(p.tokenIn).safeTransferFrom(p.counterparty, address(this), grossAmount);
         IERC20(p.tokenOut).safeTransfer(p.counterparty, p.amountOut);
 
-        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
-            (, uint256 feeAmount,) = _feeAmounts(p.amountIn, p.feeSnapshot.openP2PFeeBps, p.feeMode);
-            _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
-        } else {
-            (, uint256 feeAmount,) = _feeAmounts(p.amountIn, p.feeSnapshot.takerFeeBps, p.feeMode);
-            _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
-        }
+        _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
 
         _chargeExtraFee(p.extraFee, p.adminApproved);
         emit SwapExecuted(proposalId);
