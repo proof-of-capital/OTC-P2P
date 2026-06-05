@@ -22,7 +22,6 @@ interface IOTCClientVault {
         view
         returns (
             address token,
-            uint256 duration,
             uint256 newLockUntil,
             uint256 deadline,
             bool clientApproved,
@@ -94,12 +93,12 @@ interface IOTCClientVault {
 
     // ── Lock proposals ──────────────────────────────────────────────────────────
 
-    /// @notice Admin proposes to lock `token` for `duration` seconds.
+    /// @notice Admin proposes to lock `token` until `newLockUntil`.
     /// @param token Token to lock.
-    /// @param duration Lock duration; must be ≤ `OTCConstants.MAX_LOCK_DURATION`.
+    /// @param newLockUntil Absolute timestamp the lock should extend to.
     /// @param deadline Proposal expiry; must be after the current block.
     /// @return proposalId Id of the created proposal.
-    function proposeLock(address token, uint256 duration, uint256 deadline) external returns (uint256 proposalId);
+    function proposeLock(address token, uint256 newLockUntil, uint256 deadline) external returns (uint256 proposalId);
 
     /// @notice Client accepts a lock proposal, extending the token lock if the new expiry is later.
     /// @param proposalId Proposal to accept.

@@ -106,23 +106,24 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
     // ── Lock proposals ──────────────────────────────────────────────────────────
 
     /// @inheritdoc IOTCClientVault
-    function proposeLock(address token, uint256 duration, uint256 deadline)
+    function proposeLock(address token, uint256 newLockUntil, uint256 deadline)
         external
         override
         onlyFactoryAdmin
         returns (uint256 proposalId)
     {
         require(token != address(0), InvalidAddress());
+        require(newLockUntil > block.timestamp, InvalidLockUntil());
+        uint256 lockDuration = newLockUntil - block.timestamp;
         require(
-            duration <= OTCConstants.MAX_LOCK_DURATION, LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
+            lockDuration <= OTCConstants.MAX_LOCK_DURATION,
+            LockDurationTooLarge(lockDuration, OTCConstants.MAX_LOCK_DURATION)
         );
         require(deadline > block.timestamp, InvalidDeadline());
 
         proposalId = _nextProposalId();
-        uint256 newLockUntil = block.timestamp + duration;
         OTCTypes.LockProposal storage p = lockProposals[proposalId];
         p.token = token;
-        p.duration = duration;
         p.newLockUntil = newLockUntil;
         p.deadline = deadline;
 

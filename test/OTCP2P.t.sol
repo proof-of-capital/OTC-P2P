@@ -740,7 +740,7 @@ contract OTCP2PTest is Test {
 
     function _proposeLock(OTCClientVault vault, address token, uint256 duration) internal returns (uint256) {
         vm.prank(operatorAdmin);
-        return vault.proposeLock(token, duration, block.timestamp + 1 days);
+        return vault.proposeLock(token, block.timestamp + duration, block.timestamp + 1 days);
     }
 
     function _proposeDirectDelivery(

@@ -104,7 +104,7 @@ contract OTCCoverageGapsTest is Test {
 
     function _proposeLock(address token, uint256 duration) internal returns (uint256) {
         vm.prank(operatorAdmin);
-        return vault.proposeLock(token, duration, block.timestamp + 1 days);
+        return vault.proposeLock(token, block.timestamp + duration, block.timestamp + 1 days);
     }
 
     function _proposeDirectDelivery(address token, uint256 amount, address to, OTCTypes.ExtraFee memory extra)
@@ -210,7 +210,7 @@ contract OTCCoverageGapsTest is Test {
     function testProposeLock_RevertsZeroToken() public {
         vm.prank(operatorAdmin);
         vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
-        vault.proposeLock(address(0), 1 days, block.timestamp + 1 days);
+        vault.proposeLock(address(0), block.timestamp + 1 days, block.timestamp + 1 days);
     }
 
     function testProposeLock_RevertsDurationTooLarge() public {
@@ -221,13 +221,19 @@ contract OTCCoverageGapsTest is Test {
                 IOTCClientVaultErrors.LockDurationTooLarge.selector, tooLong, OTCConstants.MAX_LOCK_DURATION
             )
         );
-        vault.proposeLock(address(usdt), tooLong, block.timestamp + 1 days);
+        vault.proposeLock(address(usdt), block.timestamp + tooLong, block.timestamp + 1 days);
     }
 
     function testProposeLock_RevertsDeadlinePast() public {
         vm.prank(operatorAdmin);
         vm.expectRevert(IOTCClientVaultErrors.InvalidDeadline.selector);
-        vault.proposeLock(address(usdt), 1 days, block.timestamp);
+        vault.proposeLock(address(usdt), block.timestamp + 1 days, block.timestamp);
+    }
+
+    function testProposeLock_RevertsInvalidLockUntil() public {
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidLockUntil.selector);
+        vault.proposeLock(address(usdt), block.timestamp, block.timestamp + 1 days);
     }
 
     function testCancelLockProposal_RevertsInvalidProposal() public {
@@ -260,7 +266,7 @@ contract OTCCoverageGapsTest is Test {
         uint256 lockId = _proposeLock(address(usdt), 1 days);
         vm.warp(block.timestamp + 2 days);
 
-        (,, uint256 newLockUntil, uint256 deadline,,,) = vault.lockProposals(lockId);
+        (, uint256 newLockUntil, uint256 deadline,,,) = vault.lockProposals(lockId);
         (newLockUntil); // silence unused variable
 
         vm.prank(client);

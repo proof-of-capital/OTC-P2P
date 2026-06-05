@@ -55,12 +55,10 @@ library OTCTypes {
         address receiver;
     }
 
-    /// @notice Proposal to lock a token in the vault for a given duration.
+    /// @notice Proposal to lock a token in the vault until a specific timestamp.
     struct LockProposal {
         /// @notice Token subject to the lock.
         address token;
-        /// @notice Lock duration in seconds.
-        uint256 duration;
         /// @notice Absolute timestamp the lock would extend to.
         uint256 newLockUntil;
         /// @notice Timestamp after which the proposal can no longer be accepted.

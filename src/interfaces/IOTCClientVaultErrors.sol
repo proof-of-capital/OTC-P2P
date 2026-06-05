@@ -15,6 +15,8 @@ interface IOTCClientVaultErrors {
     error InvalidAmount();
     /// @notice Deadline is in the past or equal to the current block timestamp.
     error InvalidDeadline();
+    /// @notice Lock-until timestamp is in the past or equal to the current block timestamp.
+    error InvalidLockUntil();
     /// @notice Proposal does not exist (deadline is zero).
     error InvalidProposal();
     /// @notice Token lock duration exceeds the protocol maximum.
