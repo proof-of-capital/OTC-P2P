@@ -155,11 +155,16 @@ contract OTCClientVault is
     }
 
     /// @inheritdoc IOTCClientVault
-    function adminUnlock(address token) external override onlyFactoryAdmin {
+    function adminDecreaseLock(address token, uint256 newLockUntil) external override onlyFactoryAdmin {
         require(token != address(0), InvalidAddress());
+        require(newLockUntil > block.timestamp, InvalidLockUntil());
+
         uint256 previousLockUntil = tokenLockUntil[token];
-        tokenLockUntil[token] = block.timestamp;
-        emit TokenUnlockedByAdmin(token, previousLockUntil);
+        require(previousLockUntil > block.timestamp, TokenNotLocked());
+        require(newLockUntil < previousLockUntil, LockNotDecreased());
+
+        tokenLockUntil[token] = newLockUntil;
+        emit TokenLockDecreasedByAdmin(token, previousLockUntil, newLockUntil);
     }
 
     // ── Delivery proposals ──────────────────────────────────────────────────────

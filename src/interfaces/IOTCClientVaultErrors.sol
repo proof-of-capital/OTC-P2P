@@ -27,6 +27,10 @@ interface IOTCClientVaultErrors {
     /// @param token The locked token.
     /// @param unlocksAt Timestamp when the lock expires.
     error TokenLocked(address token, uint256 unlocksAt);
+    /// @notice Token does not have an active lock.
+    error TokenNotLocked();
+    /// @notice Supplied lock timestamp does not reduce the current lock.
+    error LockNotDecreased();
     /// @notice Proposal has already been executed.
     error ProposalAlreadyExecuted();
     /// @notice Proposal has already been cancelled.

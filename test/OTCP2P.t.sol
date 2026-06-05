@@ -148,8 +148,8 @@ contract OTCP2PTest is Test {
         vaultA.withdraw(address(usdt), 100, recipient);
     }
 
-    /// @notice Accepting a shorter lock does not shorten an existing longer lock; admin unlock resets the lock immediately.
-    function testLockAcceptDoesNotShortenAndAdminUnlocks() public {
+    /// @notice Accepting a shorter lock does not shorten an existing longer lock; admin can only reduce an active lock.
+    function testLockAcceptDoesNotShortenAndAdminDecreaseLock() public {
         _deposit(vaultA, usdt, clientA, 1_000);
         uint256 longLock = _proposeLock(vaultA, address(usdt), 30 days);
         vm.prank(clientA);
@@ -162,13 +162,34 @@ contract OTCP2PTest is Test {
         assertEq(vaultA.tokenLockUntil(address(usdt)), lockedUntil);
 
         vm.warp(block.timestamp + 2 days);
+        uint256 decreasedLockUntil = block.timestamp + 5 days;
         vm.prank(operatorAdmin);
-        vaultA.adminUnlock(address(usdt));
-        assertEq(vaultA.tokenLockUntil(address(usdt)), block.timestamp);
+        vaultA.adminDecreaseLock(address(usdt), decreasedLockUntil);
+        assertEq(vaultA.tokenLockUntil(address(usdt)), decreasedLockUntil);
+
+        vm.prank(clientA);
+        vm.expectRevert(
+            abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(usdt), decreasedLockUntil)
+        );
+        vaultA.withdraw(address(usdt), 100, recipient);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.LockNotDecreased.selector);
+        vaultA.adminDecreaseLock(address(usdt), decreasedLockUntil);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidLockUntil.selector);
+        vaultA.adminDecreaseLock(address(usdt), block.timestamp);
+
+        vm.warp(decreasedLockUntil + 1);
 
         vm.prank(clientA);
         vaultA.withdraw(address(usdt), 100, recipient);
         assertEq(usdt.balanceOf(recipient), 100);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.TokenNotLocked.selector);
+        vaultA.adminDecreaseLock(address(usdt), block.timestamp + 1 days);
     }
 
     /// @notice Cancelled proposals cannot be accepted or executed.

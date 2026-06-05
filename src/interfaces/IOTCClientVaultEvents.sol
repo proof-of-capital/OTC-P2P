@@ -13,8 +13,8 @@ interface IOTCClientVaultEvents {
     event LockProposed(uint256 indexed proposalId, address indexed token, uint256 newLockUntil);
     /// @notice Emitted when a lock proposal is accepted and the token lock is updated.
     event LockAccepted(uint256 indexed proposalId, address indexed token, uint256 lockUntil);
-    /// @notice Emitted when the admin unlocks a token immediately.
-    event TokenUnlockedByAdmin(address indexed token, uint256 previousLockUntil);
+    /// @notice Emitted when the admin decreases an active token lock.
+    event TokenLockDecreasedByAdmin(address indexed token, uint256 previousLockUntil, uint256 newLockUntil);
     /// @notice Emitted when a delivery proposal is created.
     event DeliveryProposed(uint256 indexed proposalId, address indexed token, uint256 amount, address indexed target);
     /// @notice Emitted when the client accepts a delivery proposal.

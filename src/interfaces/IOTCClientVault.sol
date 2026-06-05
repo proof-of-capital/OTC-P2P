@@ -71,9 +71,11 @@ interface IOTCClientVault {
     /// @param proposalId Proposal to cancel.
     function cancelLockProposal(uint256 proposalId) external;
 
-    /// @notice Admin immediately sets the token lock to the current block timestamp (effectively unlocking).
-    /// @param token Token to unlock.
-    function adminUnlock(address token) external;
+    /// @notice Admin decreases an active token lock to `newLockUntil`.
+    /// @dev `newLockUntil` must be in the future and earlier than the current lock timestamp.
+    /// @param token Token whose lock should be decreased.
+    /// @param newLockUntil New lock timestamp after reduction.
+    function adminDecreaseLock(address token, uint256 newLockUntil) external;
 
     // ── Delivery proposals ──────────────────────────────────────────────────────
 
