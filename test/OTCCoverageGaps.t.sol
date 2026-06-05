@@ -129,6 +129,11 @@ contract OTCCoverageGapsTest is Test {
         );
     }
 
+    function _enableSwapLevel(OTCTypes.SwapAccessLevel level) internal {
+        vm.prank(client);
+        vault.setSwapAccessLevel(level);
+    }
+
     function _createSwap(
         address proposer,
         OTCTypes.SwapAccessLevel level,
@@ -138,6 +143,9 @@ contract OTCCoverageGapsTest is Test {
         address tokenIn,
         uint256 amountIn
     ) internal returns (uint256) {
+        if (uint8(level) > uint8(vault.swapAccessLevel())) {
+            _enableSwapLevel(level);
+        }
         vm.prank(proposer);
         return vault.createSwapProposal(
             OTCTypes.SwapProposalParams({
@@ -585,6 +593,7 @@ contract OTCCoverageGapsTest is Test {
     }
 
     function testCreateSwap_RevertsSupplierOnlyByNonAdmin() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.SupplierOnly);
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.NotFactoryAdmin.selector);
         vault.createSwapProposal(
@@ -603,6 +612,7 @@ contract OTCCoverageGapsTest is Test {
     }
 
     function testCreateSwap_RevertsManagedP2PByStranger() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
         vm.prank(stranger);
         vm.expectRevert(IOTCClientVaultErrors.NotSwapParticipant.selector);
         vault.createSwapProposal(
@@ -747,15 +757,15 @@ contract OTCCoverageGapsTest is Test {
             client, OTCTypes.SwapAccessLevel.ManagedP2P, counterparty, address(usdt), 100, address(weth), 100
         );
 
-        // Downgrade vault access to SupplierOnly after proposal creation
-        vm.prank(client);
-        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.SupplierOnly);
-
-        // Approve all parties
+        // Approve all parties while current level still permits the proposal.
         vm.prank(operatorAdmin);
         vault.approveSwap(swapId);
         vm.prank(counterparty);
         vault.approveSwap(swapId);
+
+        // Downgrade vault access to SupplierOnly after proposal approvals.
+        vm.prank(client);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.SupplierOnly);
 
         vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
         vault.executeSwap(swapId);

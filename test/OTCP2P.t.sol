@@ -391,19 +391,42 @@ contract OTCP2PTest is Test {
         vaultA.executeDelivery(insufficientId);
     }
 
-    /// @notice New vaults default to ManagedP2P, allowing SupplierOnly and ManagedP2P while rejecting OpenP2P.
-    function testConstructorDefaultsSwapAccessLevelToManagedP2P() public {
-        assertEq(uint8(vaultA.swapAccessLevel()), uint8(OTCTypes.SwapAccessLevel.ManagedP2P));
+    /// @notice New vaults default to DeliveryOnly, blocking all swap proposal levels.
+    function testConstructorDefaultsSwapAccessLevelToDeliveryOnly() public {
+        assertEq(uint8(vaultA.swapAccessLevel()), uint8(OTCTypes.SwapAccessLevel.DeliveryOnly));
 
-        _createSwap(
-            vaultA, operatorAdmin, OTCTypes.SwapAccessLevel.SupplierOnly, supplier, address(usdt), 1, address(weth), 1
+        vm.startPrank(clientA);
+
+        vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
+        vaultA.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.SupplierOnly,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: supplier,
+                tokenOut: address(usdt),
+                amountOut: 1,
+                tokenIn: address(weth),
+                amountIn: 1,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
         );
 
-        _createSwap(
-            vaultA, clientA, OTCTypes.SwapAccessLevel.ManagedP2P, externalParty, address(usdt), 1, address(weth), 1
+        vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
+        vaultA.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.ManagedP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: externalParty,
+                tokenOut: address(usdt),
+                amountOut: 1,
+                tokenIn: address(weth),
+                amountIn: 1,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
         );
 
-        vm.prank(clientA);
         vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
         vaultA.createSwapProposal(
             OTCTypes.SwapProposalParams({
@@ -418,6 +441,7 @@ contract OTCP2PTest is Test {
             }),
             emptyExtraFee
         );
+        vm.stopPrank();
     }
 
     /// @notice Level 1 SupplierOnly moves tokens, charges taker fees, and inherits the outbound token lock.
@@ -823,6 +847,12 @@ contract OTCP2PTest is Test {
         );
     }
 
+    function _enableSwapLevel(OTCClientVault vault, OTCTypes.SwapAccessLevel level) internal {
+        address client = address(vault) == address(vaultA) ? clientA : clientB;
+        vm.prank(client);
+        vault.setSwapAccessLevel(level);
+    }
+
     function _createSwap(
         OTCClientVault vault,
         address proposer,
@@ -849,6 +879,9 @@ contract OTCP2PTest is Test {
         address tokenIn,
         uint256 amountIn
     ) internal returns (uint256) {
+        if (uint8(level) > uint8(vault.swapAccessLevel())) {
+            _enableSwapLevel(vault, level);
+        }
         vm.prank(proposer);
         return vault.createSwapProposal(
             OTCTypes.SwapProposalParams({

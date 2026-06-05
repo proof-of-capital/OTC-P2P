@@ -50,7 +50,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
         uint256 n = defaultLockConfigs_.length;
 
         factory = factory_;
-        swapAccessLevel = OTCTypes.SwapAccessLevel.ManagedP2P;
+        swapAccessLevel = OTCTypes.SwapAccessLevel.DeliveryOnly;
         for (uint256 i = 0; i < n;) {
             OTCTypes.DefaultLockConfig memory config = defaultLockConfigs_[i];
             address token = config.token;
