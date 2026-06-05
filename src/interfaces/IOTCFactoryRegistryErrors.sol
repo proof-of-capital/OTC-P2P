@@ -13,4 +13,12 @@ interface IOTCFactoryRegistryErrors {
     error ProtocolFeeShareTooLarge(uint256 shareBps, uint256 maxAllowed);
     /// @notice Fee config contains a value that exceeds the 100 % basis-point ceiling.
     error FeeBpsTooLarge(uint256 feeBps, uint256 maxAllowed);
+    /// @notice Vault was already registered in the registry.
+    error VaultAlreadyRegistered(address vault);
+    /// @notice Vault reports a different factory than expected.
+    error VaultFactoryMismatch(address vault, address expectedFactory, address actualFactory);
+    /// @notice Vault owner does not match the expected client.
+    error VaultClientMismatch(address vault, address expectedClient, address actualClient);
+    /// @notice Factory does not recognize the vault as its own deployment.
+    error VaultNotFactoryOwned(address operatorFactory, address vault);
 }

@@ -73,12 +73,23 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
 
     /// @inheritdoc IOTCFactoryRegistry
     function registerVault(address vault, address client) external override {
-        require(isOperatorFactory[msg.sender], NotOperatorFactory());
+        address operatorFactory = msg.sender;
+        require(isOperatorFactory[operatorFactory], NotOperatorFactory());
         require(vault != address(0), InvalidAddress());
         require(client != address(0), InvalidAddress());
+        require(!isVault[vault], VaultAlreadyRegistered(vault));
+
+        OTCClientVault vaultContract = OTCClientVault(payable(vault));
+        address vaultFactory = vaultContract.factory();
+        require(vaultFactory == operatorFactory, VaultFactoryMismatch(vault, operatorFactory, vaultFactory));
+
+        address vaultClient = vaultContract.owner();
+        require(vaultClient == client, VaultClientMismatch(vault, client, vaultClient));
+
+        require(OTCOperatorFactory(operatorFactory).isFactoryVault(vault), VaultNotFactoryOwned(operatorFactory, vault));
 
         isVault[vault] = true;
-        emit VaultRegistered(msg.sender, vault, client);
+        emit VaultRegistered(operatorFactory, vault, client);
     }
 
     /// @inheritdoc IOTCFactoryRegistry

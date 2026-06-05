@@ -11,6 +11,32 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {IOTCFactoryRegistryErrors} from "../src/interfaces/IOTCFactoryRegistryErrors.sol";
 import {IOTCFactoryRegistryEvents} from "../src/interfaces/IOTCFactoryRegistryEvents.sol";
 
+contract MockRegistryVault {
+    address public factory;
+    address private _owner;
+
+    constructor(address factory_, address owner_) {
+        factory = factory_;
+        _owner = owner_;
+    }
+
+    function owner() external view returns (address) {
+        return _owner;
+    }
+}
+
+contract MockRegistryOperatorFactory {
+    mapping(address vault => bool) public ownedVaults;
+
+    function setOwnedVault(address vault, bool owned) external {
+        ownedVaults[vault] = owned;
+    }
+
+    function isFactoryVault(address vault) external view returns (bool) {
+        return ownedVaults[vault];
+    }
+}
+
 contract OTCFactoryRegistryTest is Test {
     address protocolOwner = address(0x1001);
     address protocolReceiver = address(0x1002);
@@ -151,6 +177,78 @@ contract OTCFactoryRegistryTest is Test {
         vm.prank(operatorAdmin);
         address vault = factory.deployClientVault(address(0x3001));
         assertTrue(registry.isVault(vault));
+    }
+
+    function testRegisterVault_RevertsVaultAlreadyRegistered() public {
+        MockRegistryOperatorFactory mockFactory = new MockRegistryOperatorFactory();
+        _markAsOperatorFactory(address(mockFactory));
+
+        address client = address(0x3001);
+        MockRegistryVault mockVault = new MockRegistryVault(address(mockFactory), client);
+        mockFactory.setOwnedVault(address(mockVault), true);
+
+        vm.prank(address(mockFactory));
+        registry.registerVault(address(mockVault), client);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IOTCFactoryRegistryErrors.VaultAlreadyRegistered.selector, address(mockVault))
+        );
+        vm.prank(address(mockFactory));
+        registry.registerVault(address(mockVault), client);
+    }
+
+    function testRegisterVault_RevertsVaultFactoryMismatch() public {
+        MockRegistryOperatorFactory mockFactory = new MockRegistryOperatorFactory();
+        _markAsOperatorFactory(address(mockFactory));
+
+        MockRegistryVault mockVault = new MockRegistryVault(stranger, address(0x3001));
+        mockFactory.setOwnedVault(address(mockVault), true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOTCFactoryRegistryErrors.VaultFactoryMismatch.selector,
+                address(mockVault),
+                address(mockFactory),
+                stranger
+            )
+        );
+        vm.prank(address(mockFactory));
+        registry.registerVault(address(mockVault), address(0x3001));
+    }
+
+    function testRegisterVault_RevertsVaultClientMismatch() public {
+        MockRegistryOperatorFactory mockFactory = new MockRegistryOperatorFactory();
+        _markAsOperatorFactory(address(mockFactory));
+
+        address expectedClient = address(0x3001);
+        address actualClient = address(0x3002);
+        MockRegistryVault mockVault = new MockRegistryVault(address(mockFactory), actualClient);
+        mockFactory.setOwnedVault(address(mockVault), true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOTCFactoryRegistryErrors.VaultClientMismatch.selector, address(mockVault), expectedClient, actualClient
+            )
+        );
+        vm.prank(address(mockFactory));
+        registry.registerVault(address(mockVault), expectedClient);
+    }
+
+    function testRegisterVault_RevertsVaultNotFactoryOwned() public {
+        MockRegistryOperatorFactory mockFactory = new MockRegistryOperatorFactory();
+        _markAsOperatorFactory(address(mockFactory));
+
+        address client = address(0x3001);
+        MockRegistryVault mockVault = new MockRegistryVault(address(mockFactory), client);
+        mockFactory.setOwnedVault(address(mockVault), false);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOTCFactoryRegistryErrors.VaultNotFactoryOwned.selector, address(mockFactory), address(mockVault)
+            )
+        );
+        vm.prank(address(mockFactory));
+        registry.registerVault(address(mockVault), client);
     }
 
     function testClientVaultImplementation_RevertsInitializeCall() public {
@@ -315,5 +413,9 @@ contract OTCFactoryRegistryTest is Test {
         vm.prank(protocolOwner);
         registry.clearCustomProtocolFeeShareBps(address(factory));
         assertEq(registry.getProtocolFeeShareBps(address(factory)), 1_000);
+    }
+
+    function _markAsOperatorFactory(address operatorFactory) internal {
+        vm.store(address(registry), keccak256(abi.encode(operatorFactory, uint256(2))), bytes32(uint256(1)));
     }
 }
