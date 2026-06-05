@@ -63,7 +63,7 @@ interface IOTCClientVaultErrors {
     error InvalidSwapTokens();
     /// @notice Swap amounts are zero.
     error InvalidSwapAmounts();
-    /// @notice Swap level is `None`.
+    /// @notice Swap level is `DeliveryOnly`.
     error InvalidSwapLevel();
     /// @notice Proposal level is above the vault's configured maximum.
     error SwapLevelNotAllowed();

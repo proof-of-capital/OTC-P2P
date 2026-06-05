@@ -545,12 +545,33 @@ contract OTCCoverageGapsTest is Test {
 
     // ── Group 5: Swap proposal edge cases ────────────────────────────────────────
 
-    function testCreateSwap_RevertsNoneLevel() public {
+    function testCreateSwap_RevertsDeliveryOnlyLevel() public {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.InvalidSwapLevel.selector);
         vault.createSwapProposal(
             OTCTypes.SwapProposalParams({
-                level: OTCTypes.SwapAccessLevel.None,
+                level: OTCTypes.SwapAccessLevel.DeliveryOnly,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testCreateSwap_RevertsWhenVaultIsDeliveryOnly() public {
+        vm.prank(client);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.DeliveryOnly);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
+        vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.SupplierOnly,
                 feeMode: OTCTypes.FeeMode.Inclusive,
                 counterparty: counterparty,
                 tokenOut: address(usdt),
@@ -738,6 +759,30 @@ contract OTCCoverageGapsTest is Test {
 
         vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
         vault.executeSwap(swapId);
+    }
+
+    function testDeliveryOnlyMode_BlocksSwapApproveAndExecute_ButAllowsCancel() public {
+        uint256 swapId = _createSwap(
+            client, OTCTypes.SwapAccessLevel.ManagedP2P, counterparty, address(usdt), 100, address(weth), 100
+        );
+
+        vm.prank(client);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.DeliveryOnly);
+
+        vm.prank(counterparty);
+        vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
+        vault.approveSwap(swapId);
+
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
+        vault.executeSwap(swapId);
+
+        vm.prank(counterparty);
+        vault.cancelSwapProposal(swapId);
+
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.ProposalAlreadyCancelled.selector);
+        vault.approveSwap(swapId);
     }
 
     // ── Group 6: OTCFactoryRegistry edge cases ────────────────────────────────────

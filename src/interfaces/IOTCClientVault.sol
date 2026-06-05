@@ -10,7 +10,7 @@ interface IOTCClientVault {
 
     /// @notice Immutable operator factory that created this vault.
     function factory() external view returns (address);
-    /// @notice Maximum swap level currently enabled by the client.
+    /// @notice Maximum swap level currently enabled by the client (`DeliveryOnly` disables swap actions).
     function swapAccessLevel() external view returns (OTCTypes.SwapAccessLevel);
     /// @notice Auto-incrementing id assigned to the next proposal.
     function nextProposalId() external view returns (uint256);

@@ -132,8 +132,9 @@ library OTCTypes {
     }
 
     /// @notice Maximum swap capability enabled by the client for the vault.
+    /// @dev `DeliveryOnly` disables all swap actions while keeping delivery flows available.
     enum SwapAccessLevel {
-        None,
+        DeliveryOnly,
         SupplierOnly,
         ManagedP2P,
         OpenP2P

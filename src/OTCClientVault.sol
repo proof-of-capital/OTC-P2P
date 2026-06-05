@@ -289,6 +289,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
     function approveSwap(uint256 proposalId) external override {
         OTCTypes.SwapProposal storage p = swapProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        require(uint8(p.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
         if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
             _requireUnlocked(p.tokenOut);
         }
@@ -451,7 +452,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
     }
 
     function _validateSwapProposal(OTCTypes.SwapProposalParams calldata params) internal view {
-        require(params.level != OTCTypes.SwapAccessLevel.None, InvalidSwapLevel());
+        require(params.level != OTCTypes.SwapAccessLevel.DeliveryOnly, InvalidSwapLevel());
         require(uint8(params.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
         require(params.counterparty != address(0), InvalidAddress());
         _validateSwap(params.tokenOut, params.amountOut, params.tokenIn, params.amountIn, params.deadline);
