@@ -451,7 +451,7 @@ contract OTCClientVault is
         _validateSwap(params.tokenOut, params.amountOut, params.tokenIn, params.amountIn, params.deadline);
 
         if (params.level == OTCTypes.SwapAccessLevel.SupplierOnly) {
-            require(_isFactoryAdmin(msg.sender), NotFactoryAdmin());
+            require(_isFactoryAdminOrOwner(msg.sender), NotFactoryAdmin());
         } else if (params.level == OTCTypes.SwapAccessLevel.ManagedP2P) {
             require(_isSwapParticipant(msg.sender, params.counterparty), NotSwapParticipant());
         } else {
@@ -462,7 +462,7 @@ contract OTCClientVault is
     function _approveSwapRole(OTCTypes.SwapProposal storage p, address approver) internal {
         bool approved;
 
-        if (_isFactoryAdmin(approver)) {
+        if (_isFactoryAdminOrOwner(approver)) {
             p.adminApproved = true;
             approved = true;
         }
@@ -506,7 +506,7 @@ contract OTCClientVault is
     }
 
     function _autoApproveSwapRole(OTCTypes.SwapProposal storage p, address approver) internal {
-        if (_isFactoryAdmin(approver)) {
+        if (_isFactoryAdminOrOwner(approver)) {
             p.adminApproved = true;
         }
         if (approver == owner()) {
@@ -528,7 +528,7 @@ contract OTCClientVault is
     }
 
     function _isSwapParticipant(address account, address counterparty) internal view returns (bool) {
-        return account == owner() || account == counterparty || _isFactoryAdmin(account);
+        return account == owner() || account == counterparty || _isFactoryAdminOrOwner(account);
     }
 
     function _validateExtraFee(OTCTypes.ExtraFee calldata extraFee) internal pure {
@@ -563,7 +563,7 @@ contract OTCClientVault is
     }
 
     function _onlyFactoryAdmin() internal view {
-        require(_isFactoryAdmin(msg.sender), NotFactoryAdmin());
+        require(_isFactoryAdminOrOwner(msg.sender), NotFactoryAdmin());
     }
 
     function _onlyAuthorized() internal view {
@@ -578,10 +578,6 @@ contract OTCClientVault is
     function _isFactoryAdminOrOwner(address account) internal view returns (bool) {
         IOTCOperatorFactory operatorFactory = IOTCOperatorFactory(factory);
         return account == operatorFactory.admin() || account == operatorFactory.owner();
-    }
-
-    function _isFactoryAdmin(address account) internal view returns (bool) {
-        return account == IOTCOperatorFactory(factory).admin();
     }
 
     function _feeSnapshot() internal view returns (OTCTypes.FeeSnapshot memory) {
@@ -615,7 +611,7 @@ contract OTCClientVault is
     ) internal returns (OTCTypes.SwapProposal storage p) {
         p = _swapProposals[proposalId];
         p.level = params.level;
-        p.feeMode = _isFactoryAdmin(msg.sender) ? params.feeMode : OTCTypes.FeeMode.Inclusive;
+        p.feeMode = _isFactoryAdminOrOwner(msg.sender) ? params.feeMode : OTCTypes.FeeMode.Inclusive;
         p.proposer = msg.sender;
         p.counterparty = params.counterparty;
         p.tokenOut = params.tokenOut;
