@@ -29,7 +29,7 @@ interface IOTCOperatorFactory {
     /// @notice Default lock duration in seconds for `token`.
     function defaultLockDuration(address token) external view returns (uint256);
 
-    /// @notice Permissionlessly deploys a new `OTCClientVault` for `client` and registers it with the registry.
+    /// @notice Permissionlessly deploys and initializes a new `OTCClientVault` clone for `client`, then registers it.
     /// @dev Callable by any address; `client` becomes the vault owner regardless of `msg.sender`.
     /// @param client Owner of the new vault.
     /// @return vault Address of the newly deployed vault.

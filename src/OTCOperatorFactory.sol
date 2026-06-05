@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {OTCTypes} from "./types/OTCTypes.sol";
 import {OTCConstants} from "./constants/OTCConstants.sol";
 import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
@@ -72,7 +73,8 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
             }
         }
 
-        vault = address(new OTCClientVault(address(this), client, defaultLocks));
+        vault = Clones.clone(IOTCFactoryRegistry(registry).clientVaultImplementation());
+        OTCClientVault(payable(vault)).initialize(address(this), client, defaultLocks);
         isFactoryVault[vault] = true;
         vaults.push(vault);
 

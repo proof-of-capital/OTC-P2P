@@ -5,6 +5,9 @@ import {OTCTypes} from "../types/OTCTypes.sol";
 
 /// @notice External API of OTCFactoryRegistry.
 interface IOTCFactoryRegistry {
+    /// @notice Address of OTCClientVault implementation used for clone deployments.
+    function clientVaultImplementation() external view returns (address);
+
     /// @notice Address that receives the protocol portion of operator fees.
     function protocolFeeReceiver() external view returns (address);
     /// @notice Default protocol fee share in basis points applied to all operator factories without an override.

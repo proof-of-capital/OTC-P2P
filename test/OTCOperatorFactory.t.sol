@@ -8,6 +8,7 @@ import {OTCConstants} from "../src/constants/OTCConstants.sol";
 import {OTCFactoryRegistry} from "../src/OTCFactoryRegistry.sol";
 import {OTCOperatorFactory} from "../src/OTCOperatorFactory.sol";
 import {OTCClientVault} from "../src/OTCClientVault.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {IOTCOperatorFactoryErrors} from "../src/interfaces/IOTCOperatorFactoryErrors.sol";
 import {IOTCOperatorFactoryEvents} from "../src/interfaces/IOTCOperatorFactoryEvents.sol";
 
@@ -106,11 +107,15 @@ contract OTCOperatorFactoryTest is Test {
     function testDeployClientVault_ByAnyone() public {
         vm.prank(stranger);
         address vault = factory.deployClientVault(client);
+        OTCClientVault deployedVault = OTCClientVault(payable(vault));
 
         assertTrue(vault != address(0));
         assertTrue(factory.isFactoryVault(vault));
         assertTrue(registry.isVault(vault));
-        assertEq(OTCClientVault(payable(vault)).owner(), client);
+        assertEq(deployedVault.owner(), client);
+        assertEq(deployedVault.factory(), address(factory));
+        assertEq(deployedVault.nextProposalId(), 1);
+        assertEq(uint8(deployedVault.swapAccessLevel()), uint8(OTCTypes.SwapAccessLevel.DeliveryOnly));
     }
 
     function testDeployClientVault_RevertsZeroClient() public {
@@ -131,6 +136,21 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(factory.getVaultsCount(), 1);
         assertEq(factory.vaults(0), vault);
         assertTrue(registry.isVault(vault));
+    }
+
+    function testDeployClientVault_UsesMinimalProxyBytecode() public {
+        vm.prank(operatorAdmin);
+        address vault = factory.deployClientVault(client);
+        assertEq(vault.code.length, 45);
+    }
+
+    function testDeployClientVault_RevertsOnSecondInitialize() public {
+        vm.prank(operatorAdmin);
+        address vault = factory.deployClientVault(client);
+        OTCTypes.DefaultLockConfig[] memory defaultLocks = new OTCTypes.DefaultLockConfig[](0);
+
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        OTCClientVault(payable(vault)).initialize(address(factory), client, defaultLocks);
     }
 
     // ── setOwner ─────────────────────────────────────────────────────────────────

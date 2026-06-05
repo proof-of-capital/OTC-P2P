@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {OTCTypes} from "./types/OTCTypes.sol";
 import {OTCConstants} from "./constants/OTCConstants.sol";
 import {IOTCClientVault} from "./interfaces/IOTCClientVault.sol";
@@ -14,14 +15,21 @@ import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
 
 /// @title OTCClientVault
 /// @notice Holds a client's assets and executes multi-party OTC trades through a proposal-and-approval flow.
-contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTCClientVaultEvents, ReentrancyGuard {
+contract OTCClientVault is
+    Ownable,
+    Initializable,
+    IOTCClientVault,
+    IOTCClientVaultErrors,
+    IOTCClientVaultEvents,
+    ReentrancyGuard
+{
     using SafeERC20 for IERC20;
 
-    /// @notice Immutable operator factory that created this vault.
-    address public immutable factory;
+    /// @notice Operator factory that created this vault.
+    address public override factory;
 
     /// @notice Auto-incrementing id assigned to the next proposal.
-    uint256 public nextProposalId = 1;
+    uint256 public nextProposalId;
 
     /// @notice Timestamp after which `token` may be withdrawn or used in open P2P swaps.
     mapping(address token => uint256 lockUntil) public tokenLockUntil;
@@ -30,8 +38,8 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
     /// @inheritdoc IOTCClientVault
     OTCTypes.SwapAccessLevel public override swapAccessLevel;
 
-    mapping(uint256 proposalId => OTCTypes.DeliveryProposal) public deliveryProposals;
-    mapping(uint256 proposalId => OTCTypes.SwapProposal) public swapProposals;
+    mapping(uint256 proposalId => OTCTypes.DeliveryProposal) private _deliveryProposals;
+    mapping(uint256 proposalId => OTCTypes.SwapProposal) private _swapProposals;
 
     modifier onlyFactoryAdmin() {
         _onlyFactoryAdmin();
@@ -43,34 +51,115 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
         _;
     }
 
-    constructor(address factory_, address client_, OTCTypes.DefaultLockConfig[] memory defaultLockConfigs_)
-        Ownable(client_)
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() Ownable(address(this)) {
+        _disableInitializers();
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function initialize(address factory_, address client_, OTCTypes.DefaultLockConfig[] memory defaultLockConfigs_)
+        external
+        override
+        initializer
     {
         require(factory_ != address(0), InvalidAddress());
-        uint256 n = defaultLockConfigs_.length;
+        require(client_ != address(0), InvalidAddress());
 
+        _transferOwnership(client_);
         factory = factory_;
+        nextProposalId = 1;
         swapAccessLevel = OTCTypes.SwapAccessLevel.DeliveryOnly;
-        for (uint256 i = 0; i < n;) {
-            OTCTypes.DefaultLockConfig memory config = defaultLockConfigs_[i];
-            address token = config.token;
-            uint256 duration = config.duration;
-            if (duration > 0) {
-                require(token != address(0), InvalidAddress());
-                require(
-                    duration <= OTCConstants.MAX_LOCK_DURATION,
-                    LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
-                );
-                tokenLockUntil[token] = block.timestamp + duration;
-            }
-            unchecked {
-                ++i;
-            }
-        }
+        _initializeDefaultLocks(defaultLockConfigs_);
     }
 
     /// @inheritdoc IOTCClientVault
     receive() external payable override {}
+
+    /// @inheritdoc IOTCClientVault
+    function deliveryProposals(uint256 proposalId)
+        external
+        view
+        override
+        returns (
+            bool useAllowanceCall,
+            OTCTypes.FeeMode feeMode,
+            address token,
+            uint256 amount,
+            address deliveryAddress,
+            address target,
+            bytes memory callData,
+            address expectedReceivedToken,
+            uint256 minExpectedReceivedAmount,
+            uint256 deadline,
+            OTCTypes.FeeSnapshot memory feeSnapshot,
+            OTCTypes.ExtraFee memory extraFee,
+            bool clientApproved,
+            bool adminApproved,
+            bool executed,
+            bool cancelled
+        )
+    {
+        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
+        useAllowanceCall = p.useAllowanceCall;
+        feeMode = p.feeMode;
+        token = p.token;
+        amount = p.amount;
+        deliveryAddress = p.deliveryAddress;
+        target = p.target;
+        callData = p.callData;
+        expectedReceivedToken = p.expectedReceivedToken;
+        minExpectedReceivedAmount = p.minExpectedReceivedAmount;
+        deadline = p.deadline;
+        feeSnapshot = p.feeSnapshot;
+        extraFee = p.extraFee;
+        clientApproved = p.clientApproved;
+        adminApproved = p.adminApproved;
+        executed = p.executed;
+        cancelled = p.cancelled;
+    }
+
+    /// @inheritdoc IOTCClientVault
+    function swapProposals(uint256 proposalId)
+        external
+        view
+        override
+        returns (
+            OTCTypes.SwapAccessLevel level,
+            OTCTypes.FeeMode feeMode,
+            address proposer,
+            address counterparty,
+            address tokenOut,
+            uint256 amountOut,
+            address tokenIn,
+            uint256 amountIn,
+            uint256 deadline,
+            OTCTypes.FeeSnapshot memory feeSnapshot,
+            OTCTypes.ExtraFee memory extraFee,
+            bool adminApproved,
+            bool clientApproved,
+            bool counterpartyApproved,
+            bool executed,
+            bool cancelled
+        )
+    {
+        OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
+        level = p.level;
+        feeMode = p.feeMode;
+        proposer = p.proposer;
+        counterparty = p.counterparty;
+        tokenOut = p.tokenOut;
+        amountOut = p.amountOut;
+        tokenIn = p.tokenIn;
+        amountIn = p.amountIn;
+        deadline = p.deadline;
+        feeSnapshot = p.feeSnapshot;
+        extraFee = p.extraFee;
+        adminApproved = p.adminApproved;
+        clientApproved = p.clientApproved;
+        counterpartyApproved = p.counterpartyApproved;
+        executed = p.executed;
+        cancelled = p.cancelled;
+    }
 
     /// @inheritdoc IOTCClientVault
     function deposit(address token, uint256 amount) external override nonReentrant {
@@ -185,27 +274,13 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
         _validateExtraFee(extraFee);
 
         proposalId = _nextProposalId();
-        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
-        p.useAllowanceCall = params.useAllowanceCall;
-        p.feeMode = params.feeMode;
-        p.token = params.token;
-        p.amount = params.amount;
-        p.deliveryAddress = params.deliveryAddress;
-        p.target = params.target;
-        p.callData = params.callData;
-        p.expectedReceivedToken = params.expectedReceivedToken;
-        p.minExpectedReceivedAmount = params.minExpectedReceivedAmount;
-        p.deadline = params.deadline;
-        p.feeSnapshot = _feeSnapshot();
-        p.extraFee = extraFee;
-        p.adminApproved = true;
-
-        emit DeliveryProposed(proposalId, p.token, p.amount, p.target);
+        _storeDeliveryProposal(proposalId, params, extraFee);
+        emit DeliveryProposed(proposalId, params.token, params.amount, params.target);
     }
 
     /// @inheritdoc IOTCClientVault
     function acceptDeliveryProposal(uint256 proposalId) external override onlyOwner {
-        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
         p.clientApproved = true;
         emit DeliveryAccepted(proposalId);
@@ -213,7 +288,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
 
     /// @inheritdoc IOTCClientVault
     function executeDelivery(uint256 proposalId) external override nonReentrant {
-        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
         require(p.clientApproved, ClientNotApproved());
         require(p.adminApproved, AdminNotApproved());
@@ -233,7 +308,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
 
     /// @inheritdoc IOTCClientVault
     function cancelDeliveryProposal(uint256 proposalId) external override onlyAuthorized {
-        OTCTypes.DeliveryProposal storage p = deliveryProposals[proposalId];
+        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         require(p.deadline != 0, InvalidProposal());
         _requireNotExecutedOrCancelled(p.executed, p.cancelled);
         p.cancelled = true;
@@ -259,18 +334,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
         _validateExtraFee(extraFee);
 
         proposalId = _nextProposalId();
-        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
-        p.level = params.level;
-        p.feeMode = _isFactoryAdmin(msg.sender) ? params.feeMode : OTCTypes.FeeMode.Inclusive;
-        p.proposer = msg.sender;
-        p.counterparty = params.counterparty;
-        p.tokenOut = params.tokenOut;
-        p.amountOut = params.amountOut;
-        p.tokenIn = params.tokenIn;
-        p.amountIn = params.amountIn;
-        p.deadline = params.deadline;
-        p.feeSnapshot = _feeSnapshot();
-        p.extraFee = extraFee;
+        OTCTypes.SwapProposal storage p = _storeSwapProposal(proposalId, params, extraFee);
         _approveSwapRole(p, msg.sender);
 
         emit SwapProposed(
@@ -287,7 +351,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
 
     /// @inheritdoc IOTCClientVault
     function approveSwap(uint256 proposalId) external override {
-        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
         require(uint8(p.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
         if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
@@ -299,7 +363,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
 
     /// @inheritdoc IOTCClientVault
     function executeSwap(uint256 proposalId) external override nonReentrant {
-        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
         _autoApproveSwapRole(p, msg.sender);
         _requireSwapApprovals(p);
@@ -331,7 +395,7 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
 
     /// @inheritdoc IOTCClientVault
     function cancelSwapProposal(uint256 proposalId) external override {
-        OTCTypes.SwapProposal storage p = swapProposals[proposalId];
+        OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         require(p.deadline != 0, InvalidProposal());
         require(_isClientAdminOrOwner(msg.sender) || msg.sender == p.counterparty, NotAuthorized());
         _requireNotExecutedOrCancelled(p.executed, p.cancelled);
@@ -560,6 +624,64 @@ contract OTCClientVault is Ownable, IOTCClientVault, IOTCClientVaultErrors, IOTC
 
     function _feeSnapshot() internal view returns (OTCTypes.FeeSnapshot memory) {
         return IOTCOperatorFactory(factory).getCurrentFeeSnapshot();
+    }
+
+    function _storeDeliveryProposal(
+        uint256 proposalId,
+        OTCTypes.DeliveryProposalParams calldata params,
+        OTCTypes.ExtraFee calldata extraFee
+    ) internal {
+        OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
+        p.useAllowanceCall = params.useAllowanceCall;
+        p.feeMode = params.feeMode;
+        p.token = params.token;
+        p.amount = params.amount;
+        p.deliveryAddress = params.deliveryAddress;
+        p.target = params.target;
+        p.callData = params.callData;
+        p.expectedReceivedToken = params.expectedReceivedToken;
+        p.minExpectedReceivedAmount = params.minExpectedReceivedAmount;
+        p.deadline = params.deadline;
+        p.feeSnapshot = _feeSnapshot();
+        p.extraFee = extraFee;
+        p.adminApproved = true;
+    }
+
+    function _storeSwapProposal(
+        uint256 proposalId,
+        OTCTypes.SwapProposalParams calldata params,
+        OTCTypes.ExtraFee calldata extraFee
+    ) internal returns (OTCTypes.SwapProposal storage p) {
+        p = _swapProposals[proposalId];
+        p.level = params.level;
+        p.feeMode = _isFactoryAdmin(msg.sender) ? params.feeMode : OTCTypes.FeeMode.Inclusive;
+        p.proposer = msg.sender;
+        p.counterparty = params.counterparty;
+        p.tokenOut = params.tokenOut;
+        p.amountOut = params.amountOut;
+        p.tokenIn = params.tokenIn;
+        p.amountIn = params.amountIn;
+        p.deadline = params.deadline;
+        p.feeSnapshot = _feeSnapshot();
+        p.extraFee = extraFee;
+    }
+
+    function _initializeDefaultLocks(OTCTypes.DefaultLockConfig[] memory defaultLockConfigs_) internal {
+        uint256 n = defaultLockConfigs_.length;
+        for (uint256 i = 0; i < n;) {
+            OTCTypes.DefaultLockConfig memory config = defaultLockConfigs_[i];
+            if (config.duration > 0) {
+                require(config.token != address(0), InvalidAddress());
+                require(
+                    config.duration <= OTCConstants.MAX_LOCK_DURATION,
+                    LockDurationTooLarge(config.duration, OTCConstants.MAX_LOCK_DURATION)
+                );
+                tokenLockUntil[config.token] = block.timestamp + config.duration;
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function _nextProposalId() internal returns (uint256 proposalId) {

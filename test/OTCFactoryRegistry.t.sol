@@ -6,6 +6,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {OTCTypes} from "../src/types/OTCTypes.sol";
 import {OTCFactoryRegistry} from "../src/OTCFactoryRegistry.sol";
 import {OTCOperatorFactory} from "../src/OTCOperatorFactory.sol";
+import {OTCClientVault} from "../src/OTCClientVault.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {IOTCFactoryRegistryErrors} from "../src/interfaces/IOTCFactoryRegistryErrors.sol";
 import {IOTCFactoryRegistryEvents} from "../src/interfaces/IOTCFactoryRegistryEvents.sol";
 
@@ -37,6 +39,12 @@ contract OTCFactoryRegistryTest is Test {
         assertEq(registry.owner(), protocolOwner);
         assertEq(registry.protocolFeeReceiver(), protocolReceiver);
         assertEq(registry.defaultProtocolFeeShareBps(), 1_000);
+        assertTrue(registry.clientVaultImplementation() != address(0));
+    }
+
+    function testConstructor_DeploysClientVaultImplementation() public view {
+        address implementation = registry.clientVaultImplementation();
+        assertGt(implementation.code.length, 0);
     }
 
     function testConstructor_RevertsZeroOwner() public {
@@ -143,6 +151,13 @@ contract OTCFactoryRegistryTest is Test {
         vm.prank(operatorAdmin);
         address vault = factory.deployClientVault(address(0x3001));
         assertTrue(registry.isVault(vault));
+    }
+
+    function testClientVaultImplementation_RevertsInitializeCall() public {
+        OTCTypes.DefaultLockConfig[] memory defaultLocks = new OTCTypes.DefaultLockConfig[](0);
+        address implementation = registry.clientVaultImplementation();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        OTCClientVault(payable(implementation)).initialize(address(factory), address(0x3001), defaultLocks);
     }
 
     // ── setProtocolFeeReceiver ───────────────────────────────────────────────────

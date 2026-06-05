@@ -8,10 +8,14 @@ import {IOTCFactoryRegistry} from "./interfaces/IOTCFactoryRegistry.sol";
 import {IOTCFactoryRegistryErrors} from "./interfaces/IOTCFactoryRegistryErrors.sol";
 import {IOTCFactoryRegistryEvents} from "./interfaces/IOTCFactoryRegistryEvents.sol";
 import {OTCOperatorFactory} from "./OTCOperatorFactory.sol";
+import {OTCClientVault} from "./OTCClientVault.sol";
 
 /// @title OTCFactoryRegistry
 /// @notice Central registry that deploys operator factories and manages protocol-level fee settings.
 contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistryErrors, IOTCFactoryRegistryEvents {
+    /// @notice Address of OTCClientVault implementation used for clone deployments.
+    address public immutable clientVaultImplementation;
+
     /// @notice Address that receives the protocol portion of operator fees.
     address public protocolFeeReceiver;
     /// @notice Default protocol fee share in basis points applied when no per-operator override exists.
@@ -40,6 +44,7 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
             ProtocolFeeShareTooLarge(initialDefaultProtocolFeeShareBps, OTCConstants.MAX_FEE_BPS)
         );
 
+        clientVaultImplementation = address(new OTCClientVault());
         protocolFeeReceiver = initialProtocolFeeReceiver;
         defaultProtocolFeeShareBps = initialDefaultProtocolFeeShareBps;
     }

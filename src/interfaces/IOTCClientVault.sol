@@ -5,10 +5,17 @@ import {OTCTypes} from "../types/OTCTypes.sol";
 
 /// @notice External API of OTCClientVault.
 interface IOTCClientVault {
+    /// @notice Initializes a freshly deployed clone vault.
+    /// @param factory_ Operator factory that manages this vault.
+    /// @param client_ Vault owner.
+    /// @param defaultLockConfigs_ Initial lock configuration list.
+    function initialize(address factory_, address client_, OTCTypes.DefaultLockConfig[] memory defaultLockConfigs_)
+        external;
+
     /// @notice Accepts native ETH sent to the vault.
     receive() external payable;
 
-    /// @notice Immutable operator factory that created this vault.
+    /// @notice Operator factory that created this vault.
     function factory() external view returns (address);
     /// @notice Maximum swap level currently enabled by the client (`DeliveryOnly` disables swap actions).
     function swapAccessLevel() external view returns (OTCTypes.SwapAccessLevel);
