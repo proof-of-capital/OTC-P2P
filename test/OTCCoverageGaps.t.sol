@@ -939,7 +939,7 @@ contract OTCCoverageGapsTest is Test {
         );
     }
 
-    function testApproveSwap_OpenP2P_RevertsLockedToken() public {
+    function testExecuteSwap_OpenP2P_RevertsLockedToken() public {
         _deposit(address(usdt), 1_000);
         vm.prank(client);
         vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
@@ -955,7 +955,7 @@ contract OTCCoverageGapsTest is Test {
         uint256 unlocksAt = vault.tokenLockUntil(address(usdt));
         vm.prank(counterparty);
         vm.expectRevert(abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(usdt), unlocksAt));
-        vault.approveSwap(swapId);
+        vault.executeSwap(swapId);
     }
 
     function testApproveSwap_RevertsNotParticipant() public {

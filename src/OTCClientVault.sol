@@ -282,9 +282,6 @@ contract OTCClientVault is
         OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
         require(uint8(p.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
-        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P) {
-            _requireUnlocked(p.tokenOut);
-        }
         _approveSwapRole(p, msg.sender);
         emit SwapApproved(proposalId, msg.sender);
     }
