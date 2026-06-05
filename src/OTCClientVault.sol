@@ -225,7 +225,7 @@ contract OTCClientVault is
         }
 
         _chargeFee(p.token, feeAmount, p.feeSnapshot);
-        _chargeExtraFee(p.extraFee);
+        _chargeExtraFee(p.extraFee, p.adminApproved);
         emit DeliveryExecuted(proposalId, p.token, p.target, p.expectedReceivedToken, p.minExpectedReceivedAmount);
     }
 
@@ -312,7 +312,7 @@ contract OTCClientVault is
             _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
         }
 
-        _chargeExtraFee(p.extraFee);
+        _chargeExtraFee(p.extraFee, p.adminApproved);
         emit SwapExecuted(proposalId);
     }
 
@@ -396,8 +396,9 @@ contract OTCClientVault is
         if (operatorNetFee > 0) IERC20(token).safeTransfer(snapshot.operatorFeeReceiver, operatorNetFee);
     }
 
-    function _chargeExtraFee(OTCTypes.ExtraFee memory extraFee) internal {
+    function _chargeExtraFee(OTCTypes.ExtraFee memory extraFee, bool adminApproved) internal {
         if (extraFee.amount == 0) return;
+        if (!adminApproved) _requireUnlocked(extraFee.token);
         IERC20(extraFee.token).safeTransfer(extraFee.receiver, extraFee.amount);
     }
 

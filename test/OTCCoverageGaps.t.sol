@@ -414,6 +414,73 @@ contract OTCCoverageGapsTest is Test {
         vault.executeDelivery(id);
     }
 
+    function testDeliveryExecute_OpenP2P_RevertsWhenExtraFeeTokenLockedWithoutAdminApproval() public {
+        _deposit(address(usdt), 1_000);
+        _deposit(address(weth), 100);
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 lockId = _proposeLock(address(weth), 1 days);
+        vm.prank(client);
+        vault.acceptLockProposal(lockId);
+
+        OTCTypes.ExtraFee memory extraFee =
+            OTCTypes.ExtraFee({token: address(weth), amount: 10, receiver: extraReceiver});
+
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            extraFee
+        );
+
+        uint256 unlocksAt = vault.tokenLockUntil(address(weth));
+        vm.prank(client);
+        vm.expectRevert(abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(weth), unlocksAt));
+        vault.executeDelivery(id);
+    }
+
+    function testDeliveryExecute_OpenP2P_AllowsExtraFeeWhenExtraFeeTokenUnlockedWithoutAdminApproval() public {
+        _deposit(address(usdt), 1_000);
+        _deposit(address(weth), 100);
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        OTCTypes.ExtraFee memory extraFee =
+            OTCTypes.ExtraFee({token: address(weth), amount: 10, receiver: extraReceiver});
+
+        vm.prank(client);
+        uint256 id = vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            extraFee
+        );
+
+        vm.prank(client);
+        vault.executeDelivery(id);
+
+        assertEq(usdt.balanceOf(recipient), 100);
+        assertEq(weth.balanceOf(extraReceiver), 10);
+    }
+
     function testDeliveryExecute_DeliveryOnlyWithoutAdminApprovalReverts() public {
         _deposit(address(usdt), 1_000);
 
@@ -978,6 +1045,76 @@ contract OTCCoverageGapsTest is Test {
 
         vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
         vault.executeSwap(swapId);
+    }
+
+    function testExecuteSwap_OpenP2P_RevertsWhenExtraFeeTokenLockedWithoutAdminApproval() public {
+        _deposit(address(usdt), 1_000);
+        weth.mint(counterparty, 100);
+        vm.prank(counterparty);
+        weth.approve(address(vault), 100);
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 lockId = _proposeLock(address(weth), 1 days);
+        vm.prank(client);
+        vault.acceptLockProposal(lockId);
+
+        OTCTypes.ExtraFee memory extraFee =
+            OTCTypes.ExtraFee({token: address(weth), amount: 10, receiver: extraReceiver});
+        vm.prank(client);
+        uint256 swapId = vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.OpenP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            extraFee
+        );
+
+        uint256 unlocksAt = vault.tokenLockUntil(address(weth));
+        vm.prank(counterparty);
+        vm.expectRevert(abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(weth), unlocksAt));
+        vault.executeSwap(swapId);
+    }
+
+    function testExecuteSwap_OpenP2P_AdminApprovedBypassesExtraFeeTokenLock() public {
+        _deposit(address(usdt), 1_000);
+        weth.mint(counterparty, 100);
+        vm.prank(counterparty);
+        weth.approve(address(vault), 100);
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 lockId = _proposeLock(address(weth), 1 days);
+        vm.prank(client);
+        vault.acceptLockProposal(lockId);
+
+        OTCTypes.ExtraFee memory extraFee =
+            OTCTypes.ExtraFee({token: address(weth), amount: 10, receiver: extraReceiver});
+        vm.prank(client);
+        uint256 swapId = vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.OpenP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            extraFee
+        );
+
+        vm.prank(operatorAdmin);
+        vault.approveSwap(swapId);
+        vm.prank(counterparty);
+        vault.executeSwap(swapId);
+
+        assertEq(weth.balanceOf(extraReceiver), 10);
     }
 
     function testDeliveryOnlyMode_BlocksSwapApproveAndExecute_ButAllowsCancel() public {
