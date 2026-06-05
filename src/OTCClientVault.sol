@@ -307,7 +307,6 @@ contract OTCClientVault is
             (, uint256 feeAmount,) = _feeAmounts(p.amountIn, p.feeSnapshot.openP2PFeeBps, p.feeMode);
             _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
         } else {
-            _inheritLock(p.tokenOut, p.tokenIn);
             (, uint256 feeAmount,) = _feeAmounts(p.amountIn, p.feeSnapshot.takerFeeBps, p.feeMode);
             _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
         }
@@ -360,14 +359,6 @@ contract OTCClientVault is
             require(
                 received >= p.minExpectedReceivedAmount, InsufficientReceived(received, p.minExpectedReceivedAmount)
             );
-            _inheritLock(p.token, p.expectedReceivedToken);
-        }
-    }
-
-    function _inheritLock(address tokenOut, address tokenIn) internal {
-        uint256 outLock = tokenLockUntil[tokenOut];
-        if (outLock > tokenLockUntil[tokenIn]) {
-            tokenLockUntil[tokenIn] = outLock;
         }
     }
 

@@ -625,7 +625,7 @@ contract OTCCoverageGapsTest is Test {
         vault.acceptDeliveryProposal(id);
         vault.executeDelivery(id);
 
-        // No lock inheritance should happen (expectedReceivedToken == address(0))
+        // No lock update should happen when expectedReceivedToken is not set.
         assertEq(vault.tokenLockUntil(address(weth)), 0);
     }
 
@@ -706,43 +706,6 @@ contract OTCCoverageGapsTest is Test {
         assertEq(usdt.balanceOf(recipient), 10_000);
         assertEq(usdt.balanceOf(protocolReceiver), 100);
         assertEq(usdt.balanceOf(operatorReceiver), 0);
-    }
-
-    function testInheritLock_NoUpdateWhenTokenInAlreadyLonger() public {
-        _deposit(address(usdt), 10_000);
-        weth.mint(counterparty, 1_000);
-        vm.prank(counterparty);
-        weth.approve(address(vault), 1_000);
-
-        // Lock tokenIn (weth) for 30 days
-        uint256 wethLock = _proposeLock(address(weth), 30 days);
-        vm.prank(client);
-        vault.acceptLockProposal(wethLock);
-        uint256 wethLockedUntil = vault.tokenLockUntil(address(weth));
-
-        // Lock tokenOut (usdt) for only 1 day
-        uint256 usdtLock = _proposeLock(address(usdt), 1 days);
-        vm.prank(client);
-        vault.acceptLockProposal(usdtLock);
-
-        // Execute a SupplierOnly swap: usdt out, weth in
-        // _inheritLock(usdt, weth): outLock(usdt) < tokenLockUntil(weth), so no update
-        uint256 swapId = _createSwap(
-            operatorAdmin,
-            OTCTypes.SwapAccessLevel.SupplierOnly,
-            counterparty,
-            address(usdt),
-            5_000,
-            address(weth),
-            1_000
-        );
-        vm.prank(client);
-        vault.approveSwap(swapId);
-        vm.prank(counterparty);
-        vault.executeSwap(swapId);
-
-        // weth lock should remain unchanged (it was already longer)
-        assertEq(vault.tokenLockUntil(address(weth)), wethLockedUntil);
     }
 
     function testExtraFee_RevertsNonZeroAmountZeroToken() public {

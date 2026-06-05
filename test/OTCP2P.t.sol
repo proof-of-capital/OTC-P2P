@@ -189,7 +189,7 @@ contract OTCP2PTest is Test {
 
         vm.prank(operatorAdmin);
         vm.expectRevert(IOTCClientVaultErrors.TokenNotLocked.selector);
-        vaultA.adminDecreaseLock(address(usdt), block.timestamp + 1 days);
+        vaultA.adminDecreaseLock(address(usdt), decreasedLockUntil + 2 days);
     }
 
     /// @notice Cancelled proposals cannot be accepted or executed.
@@ -328,12 +328,9 @@ contract OTCP2PTest is Test {
         );
     }
 
-    /// @notice Allowance-call delivery resets the spender allowance to zero after execution and inherits the outbound token lock on the received token.
-    function testAllowanceCallDeliveryResetsAllowanceChecksReceivedAndInheritsLock() public {
+    /// @notice Allowance-call delivery resets allowance to zero and validates minimum received amount.
+    function testAllowanceCallDeliveryResetsAllowanceAndChecksReceived() public {
         _deposit(vaultA, usdt, clientA, 20_000);
-        uint256 lockId = _proposeLock(vaultA, address(usdt), 20 days);
-        vm.prank(clientA);
-        vaultA.acceptLockProposal(lockId);
 
         DeliveryCallTarget target = new DeliveryCallTarget();
         weth.mint(address(target), 7_000);
@@ -350,7 +347,6 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.allowance(address(vaultA), address(target)), 0);
         assertEq(weth.balanceOf(address(vaultA)), 7_000);
-        assertEq(vaultA.tokenLockUntil(address(weth)), vaultA.tokenLockUntil(address(usdt)));
     }
 
     /// @notice Inclusive allowance-call delivery approves only the net amount after deducting delivery fees.
@@ -465,16 +461,12 @@ contract OTCP2PTest is Test {
         vm.stopPrank();
     }
 
-    /// @notice Level 1 SupplierOnly moves tokens, charges taker fees, and inherits the outbound token lock.
-    function testSupplierOnlySwapWithEoaCounterpartyTransfersFeesAndInheritsLock() public {
+    /// @notice Level 1 SupplierOnly moves tokens and charges taker fees.
+    function testSupplierOnlySwapWithEoaCounterpartyTransfersFees() public {
         _deposit(vaultA, usdt, clientA, 120_000);
         weth.mint(supplier, 10_000);
         vm.prank(supplier);
         weth.approve(address(vaultA), 10_000);
-
-        uint256 lockId = _proposeLock(vaultA, address(usdt), 10 days);
-        vm.prank(clientA);
-        vaultA.acceptLockProposal(lockId);
 
         uint256 proposalId = _createSwap(
             vaultA,
@@ -495,7 +487,6 @@ contract OTCP2PTest is Test {
         assertEq(weth.balanceOf(address(vaultA)), 9_900);
         assertEq(weth.balanceOf(protocolReceiver), 10);
         assertEq(weth.balanceOf(operatorReceiver), 90);
-        assertEq(vaultA.tokenLockUntil(address(weth)), vaultA.tokenLockUntil(address(usdt)));
     }
 
     /// @notice Admin-created gross swaps charge taker fees above amountIn so the vault keeps the full quoted input.
@@ -562,13 +553,6 @@ contract OTCP2PTest is Test {
         _deposit(vaultA, usdt, clientA, 120_000);
         _deposit(vaultB, weth, clientB, 20_000);
 
-        uint256 lockA = _proposeLock(vaultA, address(usdt), 10 days);
-        vm.prank(clientA);
-        vaultA.acceptLockProposal(lockA);
-        uint256 lockB = _proposeLock(vaultB, address(weth), 20 days);
-        vm.prank(clientB);
-        vaultB.acceptLockProposal(lockB);
-
         uint256 swapId = _createSwap(
             vaultA,
             operatorAdmin,
@@ -592,8 +576,6 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(address(vaultB)), 100_000);
         assertEq(weth.balanceOf(address(vaultA)), 9_900);
-        assertEq(vaultA.tokenLockUntil(address(weth)), vaultA.tokenLockUntil(address(usdt)));
-        assertEq(vaultB.tokenLockUntil(address(usdt)), vaultB.tokenLockUntil(address(weth)));
         assertEq(weth.allowance(address(vaultB), address(vaultA)), 0);
     }
 
