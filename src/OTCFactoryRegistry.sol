@@ -14,7 +14,7 @@ import {OTCClientVault} from "./OTCClientVault.sol";
 /// @notice Central registry that deploys operator factories and manages protocol-level fee settings.
 contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistryErrors, IOTCFactoryRegistryEvents {
     /// @notice Address of OTCClientVault implementation used for clone deployments.
-    address public immutable clientVaultImplementation;
+    address public clientVaultImplementation;
 
     /// @notice Address that receives the protocol portion of operator fees.
     address public protocolFeeReceiver;
@@ -140,6 +140,14 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         if (isProtocolFeeWaived[operatorFactory]) return 0;
         if (hasCustomProtocolFeeShare[operatorFactory]) return customProtocolFeeShareBps[operatorFactory];
         return defaultProtocolFeeShareBps;
+    }
+
+    /// @inheritdoc IOTCFactoryRegistry
+    function setClientVaultImplementation(address newImpl) external override onlyOwner {
+        require(newImpl != address(0), InvalidAddress());
+        address previousImpl = clientVaultImplementation;
+        clientVaultImplementation = newImpl;
+        emit ClientVaultImplementationUpdated(previousImpl, newImpl);
     }
 
     /// @inheritdoc IOTCFactoryRegistry

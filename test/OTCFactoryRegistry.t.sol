@@ -415,7 +415,32 @@ contract OTCFactoryRegistryTest is Test {
         assertEq(registry.getProtocolFeeShareBps(address(factory)), 1_000);
     }
 
+    // ── setClientVaultImplementation ─────────────────────────────────────────────
+
+    function testSetClientVaultImplementation_Updates() public {
+        address newImpl = address(new OTCClientVault());
+        address previousImpl = registry.clientVaultImplementation();
+        vm.prank(protocolOwner);
+        vm.expectEmit(true, true, false, false);
+        emit IOTCFactoryRegistryEvents.ClientVaultImplementationUpdated(previousImpl, newImpl);
+        registry.setClientVaultImplementation(newImpl);
+        assertEq(registry.clientVaultImplementation(), newImpl);
+    }
+
+    function testSetClientVaultImplementation_RevertsNonOwner() public {
+        address newImpl = address(new OTCClientVault());
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vm.prank(stranger);
+        registry.setClientVaultImplementation(newImpl);
+    }
+
+    function testSetClientVaultImplementation_RevertsZeroAddress() public {
+        vm.prank(protocolOwner);
+        vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
+        registry.setClientVaultImplementation(address(0));
+    }
+
     function _markAsOperatorFactory(address operatorFactory) internal {
-        vm.store(address(registry), keccak256(abi.encode(operatorFactory, uint256(2))), bytes32(uint256(1)));
+        vm.store(address(registry), keccak256(abi.encode(operatorFactory, uint256(3))), bytes32(uint256(1)));
     }
 }

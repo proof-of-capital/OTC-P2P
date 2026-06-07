@@ -153,6 +153,30 @@ contract OTCOperatorFactoryTest is Test {
         OTCClientVault(payable(vault)).initialize(address(factory), client, defaultLocks);
     }
 
+    function testDeployClientVault_UsesUpdatedImpl() public {
+        address newImpl = address(new OTCClientVault());
+        address oldImpl = registry.clientVaultImplementation();
+        assertTrue(newImpl != oldImpl);
+
+        vm.prank(protocolOwner);
+        registry.setClientVaultImplementation(newImpl);
+
+        address vault = factory.deployClientVault(client);
+
+        // ERC1167 runtime: 363d3d373d3d3d363d73<20-byte-addr>5af4...
+        // Implementation address starts at byte offset 10.
+        bytes memory code = vault.code;
+        address embeddedImpl;
+        assembly {
+            embeddedImpl := shr(96, mload(add(add(code, 0x20), 10)))
+        }
+        assertEq(embeddedImpl, newImpl);
+
+        OTCClientVault deployedVault = OTCClientVault(payable(vault));
+        assertEq(deployedVault.owner(), client);
+        assertEq(deployedVault.factory(), address(factory));
+    }
+
     // ── setOwner ─────────────────────────────────────────────────────────────────
 
     function testSetOwner_Updates() public {

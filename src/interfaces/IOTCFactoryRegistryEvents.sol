@@ -19,4 +19,6 @@ interface IOTCFactoryRegistryEvents {
     event CustomProtocolFeeShareUpdated(address indexed operatorFactory, uint16 shareBps);
     /// @notice Emitted when a custom protocol fee share is cleared for an operator factory.
     event CustomProtocolFeeShareCleared(address indexed operatorFactory);
+    /// @notice Emitted when the client vault implementation address is updated.
+    event ClientVaultImplementationUpdated(address indexed previousImpl, address indexed newImpl);
 }

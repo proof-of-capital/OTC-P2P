@@ -1223,7 +1223,7 @@ contract OTCCoverageGapsTest is Test {
         // Manually register the mock factory as a known operator factory
         vm.store(
             address(registry),
-            keccak256(abi.encode(address(mockFactory), uint256(2))), // slot 2: isOperatorFactory mapping
+            keccak256(abi.encode(address(mockFactory), uint256(3))), // slot 3: isOperatorFactory mapping
             bytes32(uint256(1))
         );
 
@@ -1234,7 +1234,7 @@ contract OTCCoverageGapsTest is Test {
     function testRegisterVault_RevertsZeroClient() public {
         MockBadFactory mockFactory = new MockBadFactory(registry);
 
-        vm.store(address(registry), keccak256(abi.encode(address(mockFactory), uint256(2))), bytes32(uint256(1)));
+        vm.store(address(registry), keccak256(abi.encode(address(mockFactory), uint256(3))), bytes32(uint256(1)));
 
         vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
         mockFactory.registerZeroClient(address(vault));

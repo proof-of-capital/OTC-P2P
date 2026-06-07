@@ -71,6 +71,10 @@ interface IOTCFactoryRegistry {
     /// @return Effective protocol fee share in basis points.
     function getProtocolFeeShareBps(address operatorFactory) external view returns (uint16);
 
+    /// @notice Updates the vault implementation address used for all future clone deployments.
+    /// @param newImpl New implementation address; must be non-zero.
+    function setClientVaultImplementation(address newImpl) external;
+
     /// @notice Returns the total number of operator factories deployed through this registry.
     function getOperatorFactoriesCount() external view returns (uint256);
 }
