@@ -34,8 +34,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     mapping(address token => uint256 duration) public defaultLockDuration;
     /// @notice Ordered list of tokens that currently have a non-zero default lock configured.
     address[] public defaultLockTokens;
-    /// @notice Tracks whether a token is already present in `defaultLockTokens`.
-    mapping(address token => bool isTracked) private isDefaultLockTokenTracked;
     /// @notice Whether `vault` was deployed by this factory.
     mapping(address vault => bool) public isFactoryVault;
 
@@ -198,17 +196,15 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
             duration <= OTCConstants.MAX_LOCK_DURATION, LockDurationTooLarge(duration, OTCConstants.MAX_LOCK_DURATION)
         );
         if (duration == 0) {
-            defaultLockDuration[token] = 0;
-            if (isDefaultLockTokenTracked[token]) {
+            if (defaultLockDuration[token] != 0) {
                 _removeDefaultLockToken(token);
-                isDefaultLockTokenTracked[token] = false;
             }
+            defaultLockDuration[token] = 0;
             emit DefaultLockDurationUpdated(token, duration);
             return;
         }
 
-        if (!isDefaultLockTokenTracked[token]) {
-            isDefaultLockTokenTracked[token] = true;
+        if (defaultLockDuration[token] == 0) {
             defaultLockTokens.push(token);
         }
         defaultLockDuration[token] = duration;
