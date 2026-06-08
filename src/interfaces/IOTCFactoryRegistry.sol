@@ -39,8 +39,7 @@ interface IOTCFactoryRegistry {
 
     /// @notice Called by operator factories to register a freshly deployed client vault.
     /// @param vault Address of the vault being registered.
-    /// @param client Client who owns the vault.
-    function registerVault(address vault, address client) external;
+    function registerVault(address vault) external;
 
     /// @notice Updates the address that receives the protocol fee.
     /// @param newReceiver New protocol fee receiver; must be non-zero.

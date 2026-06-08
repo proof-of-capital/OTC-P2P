@@ -40,7 +40,7 @@ contract SimpleSwapTarget {
     }
 }
 
-/// @dev Registers a vault with zero vault/client address to exercise the require checks in registerVault.
+/// @dev Registers a vault with a zero vault address to exercise the require check in registerVault.
 contract MockBadFactory {
     OTCFactoryRegistry private immutable _registry;
 
@@ -48,12 +48,8 @@ contract MockBadFactory {
         _registry = registry_;
     }
 
-    function registerZeroVault(address client) external {
-        _registry.registerVault(address(0), client);
-    }
-
-    function registerZeroClient(address vault) external {
-        _registry.registerVault(vault, address(0));
+    function registerZeroVault() external {
+        _registry.registerVault(address(0));
     }
 }
 
@@ -1233,16 +1229,7 @@ contract OTCCoverageGapsTest is Test {
         );
 
         vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
-        mockFactory.registerZeroVault(client);
-    }
-
-    function testRegisterVault_RevertsZeroClient() public {
-        MockBadFactory mockFactory = new MockBadFactory(registry);
-
-        vm.store(address(registry), keccak256(abi.encode(address(mockFactory), uint256(3))), bytes32(uint256(1)));
-
-        vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
-        mockFactory.registerZeroClient(address(vault));
+        mockFactory.registerZeroVault();
     }
 
     // ── Vault fee config caching ─────────────────────────────────────────────────

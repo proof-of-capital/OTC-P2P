@@ -89,7 +89,7 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         isFactoryVault[vault] = true;
         vaults.push(vault);
 
-        IOTCFactoryRegistry(registry).registerVault(vault, client);
+        IOTCFactoryRegistry(registry).registerVault(vault);
         emit ClientVaultDeployed(client, vault);
     }
 

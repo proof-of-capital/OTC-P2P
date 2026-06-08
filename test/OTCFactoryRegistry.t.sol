@@ -175,7 +175,7 @@ contract OTCFactoryRegistryTest is Test {
     function testRegisterVault_RevertsForNonFactory() public {
         vm.expectRevert(IOTCFactoryRegistryErrors.NotOperatorFactory.selector);
         vm.prank(stranger);
-        registry.registerVault(address(0x1234), address(0x5678));
+        registry.registerVault(address(0x1234));
     }
 
     function testRegisterVault_TracksVault() public {
@@ -193,13 +193,13 @@ contract OTCFactoryRegistryTest is Test {
         mockFactory.setOwnedVault(address(mockVault), true);
 
         vm.prank(address(mockFactory));
-        registry.registerVault(address(mockVault), client);
+        registry.registerVault(address(mockVault));
 
         vm.expectRevert(
             abi.encodeWithSelector(IOTCFactoryRegistryErrors.VaultAlreadyRegistered.selector, address(mockVault))
         );
         vm.prank(address(mockFactory));
-        registry.registerVault(address(mockVault), client);
+        registry.registerVault(address(mockVault));
     }
 
     function testRegisterVault_RevertsVaultFactoryMismatch() public {
@@ -218,25 +218,7 @@ contract OTCFactoryRegistryTest is Test {
             )
         );
         vm.prank(address(mockFactory));
-        registry.registerVault(address(mockVault), address(0x3001));
-    }
-
-    function testRegisterVault_RevertsVaultClientMismatch() public {
-        MockRegistryOperatorFactory mockFactory = new MockRegistryOperatorFactory();
-        _markAsOperatorFactory(address(mockFactory));
-
-        address expectedClient = address(0x3001);
-        address actualClient = address(0x3002);
-        MockRegistryVault mockVault = new MockRegistryVault(address(mockFactory), actualClient);
-        mockFactory.setOwnedVault(address(mockVault), true);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IOTCFactoryRegistryErrors.VaultClientMismatch.selector, address(mockVault), expectedClient, actualClient
-            )
-        );
-        vm.prank(address(mockFactory));
-        registry.registerVault(address(mockVault), expectedClient);
+        registry.registerVault(address(mockVault));
     }
 
     function testRegisterVault_RevertsVaultNotFactoryOwned() public {
@@ -253,7 +235,7 @@ contract OTCFactoryRegistryTest is Test {
             )
         );
         vm.prank(address(mockFactory));
-        registry.registerVault(address(mockVault), client);
+        registry.registerVault(address(mockVault));
     }
 
     function testClientVaultImplementation_RevertsInitializeCall() public {

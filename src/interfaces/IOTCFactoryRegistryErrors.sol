@@ -21,8 +21,6 @@ interface IOTCFactoryRegistryErrors {
     error VaultAlreadyRegistered(address vault);
     /// @notice Vault reports a different factory than expected.
     error VaultFactoryMismatch(address vault, address expectedFactory, address actualFactory);
-    /// @notice Vault owner does not match the expected client.
-    error VaultClientMismatch(address vault, address expectedClient, address actualClient);
     /// @notice Factory does not recognize the vault as its own deployment.
     error VaultNotFactoryOwned(address operatorFactory, address vault);
 }
