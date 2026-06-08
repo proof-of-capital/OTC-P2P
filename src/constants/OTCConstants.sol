@@ -5,6 +5,8 @@ pragma solidity 0.8.35;
 library OTCConstants {
     /// @notice 100 % expressed in basis points; upper bound for all fee values.
     uint256 internal constant MAX_FEE_BPS = 10_000;
+    /// @notice 0.05 % expressed in basis points; lower bound for all operator fee values.
+    uint16 internal constant MIN_FEE_BPS = 5;
     /// @notice Maximum allowed token lock duration.
     uint256 internal constant MAX_LOCK_DURATION = 365 days;
     /// @notice Minimum protocol fee share in basis points (10 %). Registry can never set it below this.

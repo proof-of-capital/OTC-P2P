@@ -711,9 +711,9 @@ contract OTCCoverageGapsTest is Test {
     // ── Group 4: Fee edge cases ───────────────────────────────────────────────────
 
     function testChargeFee_ZeroBps() public {
-        // 0 < 100 (current) → sync is allowed
+        // 5 < 100 (current) → sync is allowed; 500 * 5 / 10_000 = 0 so no fees are charged
         OTCTypes.OperatorFeeConfig memory zeroFeeConfig =
-            OTCTypes.OperatorFeeConfig({takerFeeBps: 0, deliveryFeeBps: 0, openP2PFeeBps: 0});
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 5, deliveryFeeBps: 5, openP2PFeeBps: 5});
         vm.prank(operatorOwner);
         factory.setDefaultFeeConfig(zeroFeeConfig);
         vm.prank(client);

@@ -170,6 +170,30 @@ contract OTCFactoryRegistryTest is Test {
         registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, bad);
     }
 
+    function testDeployOperatorFactory_RevertsFeeBelowMin_Taker() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 4, deliveryFeeBps: 100, openP2PFeeBps: 100});
+        vm.prank(operatorOwner);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.FeeBpsTooSmall.selector, 4, 5));
+        registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, bad);
+    }
+
+    function testDeployOperatorFactory_RevertsFeeBelowMin_Delivery() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 0, openP2PFeeBps: 100});
+        vm.prank(operatorOwner);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.FeeBpsTooSmall.selector, 0, 5));
+        registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, bad);
+    }
+
+    function testDeployOperatorFactory_RevertsFeeBelowMin_OpenP2P() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 2});
+        vm.prank(operatorOwner);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.FeeBpsTooSmall.selector, 2, 5));
+        registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, bad);
+    }
+
     // ── registerVault ────────────────────────────────────────────────────────────
 
     function testRegisterVault_RevertsForNonFactory() public {

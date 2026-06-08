@@ -9,6 +9,10 @@ interface IOTCOperatorFactoryErrors {
     /// @param feeBps The supplied fee value.
     /// @param maxAllowed Maximum allowed value.
     error FeeBpsTooLarge(uint256 feeBps, uint256 maxAllowed);
+    /// @notice Fee config contains a value below the 0.05 % basis-point floor.
+    /// @param feeBps The supplied fee value.
+    /// @param minAllowed Minimum allowed value.
+    error FeeBpsTooSmall(uint256 feeBps, uint256 minAllowed);
     /// @notice Lock duration exceeds the protocol maximum.
     /// @param duration The supplied duration.
     /// @param maxAllowed Maximum allowed duration.

@@ -59,7 +59,7 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         require(msg.sender == operatorOwner, NotOperatorOwner());
         require(operatorAdmin != address(0), InvalidAddress());
         require(operatorFeeReceiver != address(0), InvalidAddress());
-        _requireValidFeeConfig(defaultFeeConfig);
+        OTCTypes._requireValidFeeConfig(defaultFeeConfig);
 
         operatorFactory = address(
             new OTCOperatorFactory(
@@ -159,19 +159,5 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
     /// @inheritdoc IOTCFactoryRegistry
     function getOperatorFactoriesCount() external view override returns (uint256) {
         return operatorFactories.length;
-    }
-
-    function _requireValidFeeConfig(OTCTypes.OperatorFeeConfig calldata config) internal pure {
-        require(
-            config.takerFeeBps <= OTCConstants.MAX_FEE_BPS, FeeBpsTooLarge(config.takerFeeBps, OTCConstants.MAX_FEE_BPS)
-        );
-        require(
-            config.deliveryFeeBps <= OTCConstants.MAX_FEE_BPS,
-            FeeBpsTooLarge(config.deliveryFeeBps, OTCConstants.MAX_FEE_BPS)
-        );
-        require(
-            config.openP2PFeeBps <= OTCConstants.MAX_FEE_BPS,
-            FeeBpsTooLarge(config.openP2PFeeBps, OTCConstants.MAX_FEE_BPS)
-        );
     }
 }

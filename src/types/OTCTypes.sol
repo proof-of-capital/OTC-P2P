@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.35;
 
+import {OTCConstants} from "../constants/OTCConstants.sol";
+
 /// @notice Shared structs for the OTC P2P protocol.
 library OTCTypes {
+    /// @notice Fee config contains a value that exceeds the 100 % basis-point ceiling.
+    error FeeBpsTooLarge(uint256 feeBps, uint256 maxAllowed);
+    /// @notice Fee config contains a value below the 0.05 % basis-point floor.
+    error FeeBpsTooSmall(uint256 feeBps, uint256 minAllowed);
+
     /// @notice How percentage fees are applied to proposal amounts.
     enum FeeMode {
         /// @notice The proposal amount is net; percentage fees are charged on top.
@@ -194,5 +201,31 @@ library OTCTypes {
         bool executed;
         /// @notice Whether the proposal has been cancelled.
         bool cancelled;
+    }
+
+    /// @notice Validates operator fee bounds against protocol constants.
+    function _requireValidFeeConfig(OperatorFeeConfig memory config) internal pure {
+        require(
+            config.takerFeeBps <= OTCConstants.MAX_FEE_BPS, FeeBpsTooLarge(config.takerFeeBps, OTCConstants.MAX_FEE_BPS)
+        );
+        require(
+            config.deliveryFeeBps <= OTCConstants.MAX_FEE_BPS,
+            FeeBpsTooLarge(config.deliveryFeeBps, OTCConstants.MAX_FEE_BPS)
+        );
+        require(
+            config.openP2PFeeBps <= OTCConstants.MAX_FEE_BPS,
+            FeeBpsTooLarge(config.openP2PFeeBps, OTCConstants.MAX_FEE_BPS)
+        );
+        require(
+            config.takerFeeBps >= OTCConstants.MIN_FEE_BPS, FeeBpsTooSmall(config.takerFeeBps, OTCConstants.MIN_FEE_BPS)
+        );
+        require(
+            config.deliveryFeeBps >= OTCConstants.MIN_FEE_BPS,
+            FeeBpsTooSmall(config.deliveryFeeBps, OTCConstants.MIN_FEE_BPS)
+        );
+        require(
+            config.openP2PFeeBps >= OTCConstants.MIN_FEE_BPS,
+            FeeBpsTooSmall(config.openP2PFeeBps, OTCConstants.MIN_FEE_BPS)
+        );
     }
 }

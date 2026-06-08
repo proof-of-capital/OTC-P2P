@@ -101,6 +101,30 @@ contract OTCOperatorFactoryTest is Test {
         new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
     }
 
+    function testConstructor_RevertsFeeBelowMin_Taker() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 4, deliveryFeeBps: 100, openP2PFeeBps: 100});
+        vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 4, 5));
+        vm.prank(address(registry));
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+    }
+
+    function testConstructor_RevertsFeeBelowMin_Delivery() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 0, openP2PFeeBps: 100});
+        vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 0, 5));
+        vm.prank(address(registry));
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+    }
+
+    function testConstructor_RevertsFeeBelowMin_OpenP2P() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 2});
+        vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 2, 5));
+        vm.prank(address(registry));
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+    }
+
     // ── deployClientVault ────────────────────────────────────────────────────────
 
     function testDeployClientVault_ByOwner() public {
@@ -300,6 +324,30 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 10_001});
         vm.prank(operatorOwner);
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
+        factory.setDefaultFeeConfig(bad);
+    }
+
+    function testSetDefaultFeeConfig_RevertsFeeBelowMin_Taker() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 4, deliveryFeeBps: 100, openP2PFeeBps: 100});
+        vm.prank(operatorOwner);
+        vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 4, 5));
+        factory.setDefaultFeeConfig(bad);
+    }
+
+    function testSetDefaultFeeConfig_RevertsFeeBelowMin_Delivery() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 0, openP2PFeeBps: 100});
+        vm.prank(operatorOwner);
+        vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 0, 5));
+        factory.setDefaultFeeConfig(bad);
+    }
+
+    function testSetDefaultFeeConfig_RevertsFeeBelowMin_OpenP2P() public {
+        OTCTypes.OperatorFeeConfig memory bad =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 2});
+        vm.prank(operatorOwner);
+        vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 2, 5));
         factory.setDefaultFeeConfig(bad);
     }
 

@@ -231,7 +231,7 @@ contract OTCP2PTest is Test {
         // deliveryFeeBps 1_000 > current 100, so we cannot sync existing vault.
         // Deploy new vault after updating factory config so it initializes with the new rates.
         OTCTypes.OperatorFeeConfig memory config =
-            OTCTypes.OperatorFeeConfig({takerFeeBps: 0, deliveryFeeBps: 1_000, openP2PFeeBps: 0});
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 5, deliveryFeeBps: 1_000, openP2PFeeBps: 5});
         vm.prank(operatorOwner);
         factory.setDefaultFeeConfig(config);
         vm.prank(operatorAdmin);
@@ -360,7 +360,7 @@ contract OTCP2PTest is Test {
         // deliveryFeeBps 1_000 > current 100, so we cannot sync existing vault.
         // Deploy new vault after updating factory config so it initializes with the new rates.
         OTCTypes.OperatorFeeConfig memory config =
-            OTCTypes.OperatorFeeConfig({takerFeeBps: 0, deliveryFeeBps: 1_000, openP2PFeeBps: 0});
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 5, deliveryFeeBps: 1_000, openP2PFeeBps: 5});
         vm.prank(operatorOwner);
         factory.setDefaultFeeConfig(config);
         vm.prank(operatorAdmin);

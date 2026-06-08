@@ -58,7 +58,7 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         require(msg.sender == registry_, NotRegistry());
         require(admin_ != address(0), InvalidAddress());
         require(operatorFeeReceiver_ != address(0), InvalidAddress());
-        _requireValidFeeConfig(defaultFeeConfig_);
+        OTCTypes._requireValidFeeConfig(defaultFeeConfig_);
 
         registry = registry_;
         admin = admin_;
@@ -109,7 +109,7 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
 
     /// @inheritdoc IOTCOperatorFactory
     function setDefaultFeeConfig(OTCTypes.OperatorFeeConfig calldata newConfig) external override onlyOwner {
-        _requireValidFeeConfig(newConfig);
+        OTCTypes._requireValidFeeConfig(newConfig);
         defaultFeeConfig = newConfig;
         emit DefaultFeeConfigUpdated(newConfig.takerFeeBps, newConfig.deliveryFeeBps, newConfig.openP2PFeeBps);
     }
@@ -219,19 +219,5 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
 
         defaultLockTokens.pop();
         delete defaultLockTokenIndexPlusOne[token];
-    }
-
-    function _requireValidFeeConfig(OTCTypes.OperatorFeeConfig memory config) internal pure {
-        require(
-            config.takerFeeBps <= OTCConstants.MAX_FEE_BPS, FeeBpsTooLarge(config.takerFeeBps, OTCConstants.MAX_FEE_BPS)
-        );
-        require(
-            config.deliveryFeeBps <= OTCConstants.MAX_FEE_BPS,
-            FeeBpsTooLarge(config.deliveryFeeBps, OTCConstants.MAX_FEE_BPS)
-        );
-        require(
-            config.openP2PFeeBps <= OTCConstants.MAX_FEE_BPS,
-            FeeBpsTooLarge(config.openP2PFeeBps, OTCConstants.MAX_FEE_BPS)
-        );
     }
 }

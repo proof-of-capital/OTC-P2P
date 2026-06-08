@@ -17,6 +17,8 @@ interface IOTCFactoryRegistryErrors {
     error ProtocolFeeCannotIncrease(uint256 newShareBps, uint256 currentShareBps);
     /// @notice Fee config contains a value that exceeds the 100 % basis-point ceiling.
     error FeeBpsTooLarge(uint256 feeBps, uint256 maxAllowed);
+    /// @notice Fee config contains a value below the 0.05 % basis-point floor.
+    error FeeBpsTooSmall(uint256 feeBps, uint256 minAllowed);
     /// @notice Vault was already registered in the registry.
     error VaultAlreadyRegistered(address vault);
     /// @notice Vault reports a different factory than expected.
