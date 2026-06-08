@@ -188,27 +188,27 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(deployedVault.factory(), address(factory));
     }
 
-    // ── setOwner ─────────────────────────────────────────────────────────────────
+    // ── transferOwnership ──────────────────────────────────────────────────────
 
-    function testSetOwner_Updates() public {
+    function testTransferOwnership_Updates() public {
         address newOwner = address(0x8888);
         vm.prank(operatorOwner);
         vm.expectEmit(true, true, false, false);
-        emit IOTCOperatorFactoryEvents.OwnerUpdated(operatorOwner, newOwner);
-        factory.setOwner(newOwner);
+        emit Ownable.OwnershipTransferred(operatorOwner, newOwner);
+        factory.transferOwnership(newOwner);
         assertEq(factory.owner(), newOwner);
     }
 
-    function testSetOwner_RevertsNonOwner() public {
+    function testTransferOwnership_RevertsNonOwner() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         vm.prank(stranger);
-        factory.setOwner(address(0x8888));
+        factory.transferOwnership(address(0x8888));
     }
 
-    function testSetOwner_RevertsZero() public {
+    function testTransferOwnership_RevertsZero() public {
         vm.prank(operatorOwner);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
-        factory.setOwner(address(0));
+        factory.transferOwnership(address(0));
     }
 
     // ── setAdmin ─────────────────────────────────────────────────────────────────

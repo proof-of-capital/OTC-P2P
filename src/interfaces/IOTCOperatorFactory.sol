@@ -43,10 +43,6 @@ interface IOTCOperatorFactory {
     /// @return vault Address of the newly deployed vault.
     function deployClientVault(address client) external returns (address vault);
 
-    /// @notice Transfers factory ownership to `newOwner`.
-    /// @param newOwner New owner address; must be non-zero.
-    function setOwner(address newOwner) external;
-
     /// @notice Updates the factory admin.
     /// @param newAdmin New admin address; must be non-zero.
     function setAdmin(address newAdmin) external;

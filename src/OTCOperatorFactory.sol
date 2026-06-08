@@ -90,13 +90,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     }
 
     /// @inheritdoc IOTCOperatorFactory
-    function setOwner(address newOwner) external override onlyOwner {
-        address previousOwner = owner();
-        transferOwnership(newOwner);
-        emit OwnerUpdated(previousOwner, newOwner);
-    }
-
-    /// @inheritdoc IOTCOperatorFactory
     function setAdmin(address newAdmin) external override onlyOwner {
         require(newAdmin != address(0), InvalidAddress());
         address previousAdmin = admin;

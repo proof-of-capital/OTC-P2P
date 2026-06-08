@@ -5,8 +5,6 @@ pragma solidity 0.8.35;
 interface IOTCOperatorFactoryEvents {
     /// @notice Emitted when a new client vault is deployed.
     event ClientVaultDeployed(address indexed client, address indexed vault);
-    /// @notice Emitted when the factory owner changes.
-    event OwnerUpdated(address indexed previousOwner, address indexed newOwner);
     /// @notice Emitted when the factory admin changes.
     event AdminUpdated(address indexed previousAdmin, address indexed newAdmin);
     /// @notice Emitted when the operator fee receiver changes.
