@@ -56,7 +56,6 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         address operatorFeeReceiver,
         OTCTypes.OperatorFeeConfig calldata defaultFeeConfig
     ) external override returns (address operatorFactory) {
-        require(operatorOwner != address(0), InvalidAddress());
         require(msg.sender == operatorOwner, NotOperatorOwner());
         require(operatorAdmin != address(0), InvalidAddress());
         require(operatorFeeReceiver != address(0), InvalidAddress());

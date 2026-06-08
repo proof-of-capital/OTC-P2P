@@ -130,7 +130,7 @@ contract OTCFactoryRegistryTest is Test {
 
     function testDeployOperatorFactory_RevertsZeroOperatorOwner() public {
         vm.prank(operatorOwner);
-        vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
+        vm.expectRevert(IOTCFactoryRegistryErrors.NotOperatorOwner.selector);
         registry.deployOperatorFactory(address(0), operatorAdmin, operatorReceiver, defaultConfig);
     }
 
