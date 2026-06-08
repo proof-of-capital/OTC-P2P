@@ -409,6 +409,38 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(factory.defaultLockDuration(token), 30 days);
     }
 
+    function testSetDefaultLockDuration_ZeroDurationRemovesMiddleTokenAndKeepsTrackingConsistent() public {
+        address tokenA = address(0xAAAA);
+        address tokenB = address(0xBBBB);
+        address tokenC = address(0xCCCC);
+
+        vm.startPrank(operatorOwner);
+        factory.setDefaultLockDuration(tokenA, 7 days);
+        factory.setDefaultLockDuration(tokenB, 14 days);
+        factory.setDefaultLockDuration(tokenC, 21 days);
+
+        // Remove middle token to exercise swap-and-pop index updates.
+        factory.setDefaultLockDuration(tokenB, 0);
+
+        assertEq(factory.defaultLockDuration(tokenB), 0);
+        assertEq(factory.getDefaultLockTokensCount(), 2);
+        assertEq(factory.defaultLockTokens(0), tokenA);
+        assertEq(factory.defaultLockTokens(1), tokenC);
+
+        // Ensure moved token can still be removed and re-added without duplicates.
+        factory.setDefaultLockDuration(tokenC, 0);
+        assertEq(factory.getDefaultLockTokensCount(), 1);
+        assertEq(factory.defaultLockTokens(0), tokenA);
+
+        factory.setDefaultLockDuration(tokenC, 30 days);
+        vm.stopPrank();
+
+        assertEq(factory.getDefaultLockTokensCount(), 2);
+        assertEq(factory.defaultLockTokens(0), tokenA);
+        assertEq(factory.defaultLockTokens(1), tokenC);
+        assertEq(factory.defaultLockDuration(tokenC), 30 days);
+    }
+
     function testSetDefaultLockDurationsBatch_ZeroDurationRemovesAndSkipsTracking() public {
         address tokenA = address(0xAAAA);
         address tokenB = address(0xBBBB);

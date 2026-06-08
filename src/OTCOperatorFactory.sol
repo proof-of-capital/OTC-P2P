@@ -34,6 +34,8 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     mapping(address token => uint256 duration) public defaultLockDuration;
     /// @notice Ordered list of tokens that currently have a non-zero default lock configured.
     address[] public defaultLockTokens;
+    /// @notice Reverse index for `defaultLockTokens` using one-based indexing (`0` means absent).
+    mapping(address token => uint256 indexPlusOne) private defaultLockTokenIndexPlusOne;
     /// @notice Whether `vault` was deployed by this factory.
     mapping(address vault => bool) public isFactoryVault;
 
@@ -195,26 +197,28 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
 
         if (defaultLockDuration[token] == 0) {
             defaultLockTokens.push(token);
+            defaultLockTokenIndexPlusOne[token] = defaultLockTokens.length;
         }
         defaultLockDuration[token] = duration;
         emit DefaultLockDurationUpdated(token, duration);
     }
 
     function _removeDefaultLockToken(address token) internal {
-        uint256 n = defaultLockTokens.length;
-        for (uint256 i = 0; i < n;) {
-            if (defaultLockTokens[i] == token) {
-                uint256 lastIndex = n - 1;
-                if (i != lastIndex) {
-                    defaultLockTokens[i] = defaultLockTokens[lastIndex];
-                }
-                defaultLockTokens.pop();
-                return;
-            }
-            unchecked {
-                ++i;
-            }
+        uint256 indexPlusOne = defaultLockTokenIndexPlusOne[token];
+        if (indexPlusOne == 0) {
+            return;
         }
+
+        uint256 index = indexPlusOne - 1;
+        uint256 lastIndex = defaultLockTokens.length - 1;
+        if (index != lastIndex) {
+            address lastToken = defaultLockTokens[lastIndex];
+            defaultLockTokens[index] = lastToken;
+            defaultLockTokenIndexPlusOne[lastToken] = indexPlusOne;
+        }
+
+        defaultLockTokens.pop();
+        delete defaultLockTokenIndexPlusOne[token];
     }
 
     function _requireValidFeeConfig(OTCTypes.OperatorFeeConfig memory config) internal pure {
