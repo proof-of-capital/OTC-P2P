@@ -12,6 +12,7 @@ import {OTCOperatorFactory} from "../src/OTCOperatorFactory.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IOTCClientVaultErrors} from "../src/interfaces/IOTCClientVaultErrors.sol";
 import {IOTCOperatorFactoryErrors} from "../src/interfaces/IOTCOperatorFactoryErrors.sol";
+import {IOTCFactoryRegistryErrors} from "../src/interfaces/IOTCFactoryRegistryErrors.sol";
 
 /// @notice Minimal ERC-20 with unrestricted minting for test setup.
 contract MockERC20 is ERC20 {
@@ -89,19 +90,20 @@ contract OTCP2PTest is Test {
         assertEq(factory.admin(), operatorAdmin);
         assertEq(registry.getProtocolFeeShareBps(address(factory)), 1_000);
 
+        // Registry cannot increase — trying to set the same value reverts
         vm.prank(protocolOwner);
-        registry.setCustomProtocolFeeShareBps(address(factory), 2_500);
-        assertEq(registry.getProtocolFeeShareBps(address(factory)), 2_500);
+        vm.expectRevert(
+            abi.encodeWithSelector(IOTCFactoryRegistryErrors.ProtocolFeeCannotIncrease.selector, 1_000, 1_000)
+        );
+        registry.setFactoryProtocolFeeShareBps(address(factory), 1_000);
 
+        // Delivery fee waivers don't affect getProtocolFeeShareBps (only delivery snapshots in vault)
         vm.prank(protocolOwner);
-        registry.setOperatorProtocolFeeWaived(address(factory), true);
-        assertEq(registry.getProtocolFeeShareBps(address(factory)), 0);
-
-        vm.prank(protocolOwner);
-        registry.setOperatorProtocolFeeWaived(address(factory), false);
-        vm.prank(protocolOwner);
-        registry.clearCustomProtocolFeeShareBps(address(factory));
+        registry.setOperatorDeliveryFeeWaived(address(factory));
         assertEq(registry.getProtocolFeeShareBps(address(factory)), 1_000);
+        assertTrue(factory.isDeliveryFeeWaived());
+        // Waiver is irreversible
+        assertTrue(registry.isDeliveryFeeWaived(address(factory)));
     }
 
     /// @notice Only the factory owner may change admin and fee receiver; changes take effect immediately.
@@ -226,23 +228,27 @@ contract OTCP2PTest is Test {
 
     /// @notice Inclusive direct delivery treats amount as the total budget and deducts bps fees from it.
     function testDirectDeliveryInclusiveFeeModeDeductsFeeFromAmount() public {
+        // deliveryFeeBps 1_000 > current 100, so we cannot sync existing vault.
+        // Deploy new vault after updating factory config so it initializes with the new rates.
         OTCTypes.OperatorFeeConfig memory config =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 0, deliveryFeeBps: 1_000, openP2PFeeBps: 0});
         vm.prank(operatorOwner);
         factory.setDefaultFeeConfig(config);
+        vm.prank(operatorAdmin);
+        OTCClientVault newVault = OTCClientVault(payable(factory.deployClientVault(clientA)));
 
-        _deposit(vaultA, usdt, clientA, 100);
+        _deposit(newVault, usdt, clientA, 100);
         uint256 proposalId = _proposeDirectDeliveryWithFeeMode(
-            vaultA, address(usdt), 100, recipient, OTCTypes.FeeMode.Inclusive, emptyExtraFee
+            newVault, address(usdt), 100, recipient, OTCTypes.FeeMode.Inclusive, emptyExtraFee
         );
         vm.prank(clientA);
-        vaultA.acceptDeliveryProposal(proposalId);
-        vaultA.executeDelivery(proposalId);
+        newVault.acceptDeliveryProposal(proposalId);
+        newVault.executeDelivery(proposalId);
 
         assertEq(usdt.balanceOf(recipient), 90);
         assertEq(usdt.balanceOf(protocolReceiver), 1);
         assertEq(usdt.balanceOf(operatorReceiver), 9);
-        assertEq(usdt.balanceOf(address(vaultA)), 0);
+        assertEq(usdt.balanceOf(address(newVault)), 0);
     }
 
     /// @notice Direct delivery mode rejects non-zero allowance-call fields (target, callData).
@@ -351,19 +357,23 @@ contract OTCP2PTest is Test {
 
     /// @notice Inclusive allowance-call delivery approves only the net amount after deducting delivery fees.
     function testAllowanceCallDeliveryInclusiveFeeModeApprovesOnlyNetAmount() public {
+        // deliveryFeeBps 1_000 > current 100, so we cannot sync existing vault.
+        // Deploy new vault after updating factory config so it initializes with the new rates.
         OTCTypes.OperatorFeeConfig memory config =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 0, deliveryFeeBps: 1_000, openP2PFeeBps: 0});
         vm.prank(operatorOwner);
         factory.setDefaultFeeConfig(config);
+        vm.prank(operatorAdmin);
+        OTCClientVault newVault = OTCClientVault(payable(factory.deployClientVault(clientA)));
 
-        _deposit(vaultA, usdt, clientA, 100);
+        _deposit(newVault, usdt, clientA, 100);
         DeliveryCallTarget target = new DeliveryCallTarget();
         weth.mint(address(target), 90);
         bytes memory callData =
-            abi.encodeCall(DeliveryCallTarget.pullAndSend, (address(usdt), address(vaultA), 90, address(weth), 90));
+            abi.encodeCall(DeliveryCallTarget.pullAndSend, (address(usdt), address(newVault), 90, address(weth), 90));
 
         uint256 proposalId = _proposeAllowanceDeliveryWithFeeMode(
-            vaultA,
+            newVault,
             address(usdt),
             100,
             address(target),
@@ -374,13 +384,13 @@ contract OTCP2PTest is Test {
             OTCTypes.FeeMode.Inclusive
         );
         vm.prank(clientA);
-        vaultA.acceptDeliveryProposal(proposalId);
-        vaultA.executeDelivery(proposalId);
+        newVault.acceptDeliveryProposal(proposalId);
+        newVault.executeDelivery(proposalId);
 
-        assertEq(weth.balanceOf(address(vaultA)), 90);
+        assertEq(weth.balanceOf(address(newVault)), 90);
         assertEq(usdt.balanceOf(protocolReceiver), 1);
         assertEq(usdt.balanceOf(operatorReceiver), 9);
-        assertEq(usdt.allowance(address(vaultA), address(target)), 0);
+        assertEq(usdt.allowance(address(newVault), address(target)), 0);
     }
 
     /// @notice Allowance-call delivery reverts for missing client approval and insufficient received amount.

@@ -11,6 +11,10 @@ interface IOTCFactoryRegistryErrors {
     error InvalidAddress();
     /// @notice Fee share exceeds the 100 % basis-point ceiling.
     error ProtocolFeeShareTooLarge(uint256 shareBps, uint256 maxAllowed);
+    /// @notice Fee share is below the minimum allowed value (10 %).
+    error ProtocolFeeShareTooLow(uint256 shareBps, uint256 minAllowed);
+    /// @notice New protocol fee share is not lower than the current value — only decreases are allowed.
+    error ProtocolFeeCannotIncrease(uint256 newShareBps, uint256 currentShareBps);
     /// @notice Fee config contains a value that exceeds the 100 % basis-point ceiling.
     error FeeBpsTooLarge(uint256 feeBps, uint256 maxAllowed);
     /// @notice Vault was already registered in the registry.

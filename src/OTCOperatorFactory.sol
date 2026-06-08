@@ -25,6 +25,11 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     /// @notice Default fee configuration applied to all new client vaults.
     OTCTypes.OperatorFeeConfig public defaultFeeConfig;
 
+    /// @notice Protocol fee share (bps) set by the registry. Can only decrease (min 10 %).
+    uint16 public override protocolFeeShareBps;
+    /// @notice Whether the protocol share of the delivery fee is waived. Set by the registry.
+    bool public deliveryFeeWaived;
+
     /// @notice Default lock duration in seconds for each token address.
     mapping(address token => uint256 duration) public defaultLockDuration;
     /// @notice Ordered list of tokens that currently have a non-zero default lock configured.
@@ -41,12 +46,18 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         return Ownable.owner();
     }
 
+    modifier onlyRegistry() {
+        require(msg.sender == registry, NotRegistry());
+        _;
+    }
+
     constructor(
         address registry_,
         address owner_,
         address admin_,
         address operatorFeeReceiver_,
-        OTCTypes.OperatorFeeConfig memory defaultFeeConfig_
+        OTCTypes.OperatorFeeConfig memory defaultFeeConfig_,
+        uint16 initialProtocolFeeShareBps_
     ) Ownable(owner_) {
         require(registry_ != address(0), InvalidAddress());
         require(admin_ != address(0), InvalidAddress());
@@ -57,6 +68,8 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         admin = admin_;
         operatorFeeReceiver = operatorFeeReceiver_;
         defaultFeeConfig = defaultFeeConfig_;
+        // Passed by the registry at deployment time so the value is consistent with registry storage.
+        protocolFeeShareBps = initialProtocolFeeShareBps_;
     }
 
     /// @inheritdoc IOTCOperatorFactory
@@ -134,13 +147,36 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     }
 
     /// @inheritdoc IOTCOperatorFactory
+    function protocolFeeReceiver() external view override returns (address) {
+        return IOTCFactoryRegistry(registry).protocolFeeReceiver();
+    }
+
+    /// @inheritdoc IOTCOperatorFactory
+    function isDeliveryFeeWaived() external view override returns (bool) {
+        return deliveryFeeWaived;
+    }
+
+    /// @inheritdoc IOTCOperatorFactory
+    function setProtocolFeeShareBps(uint16 newShareBps) external override onlyRegistry {
+        uint16 prev = protocolFeeShareBps;
+        protocolFeeShareBps = newShareBps;
+        emit ProtocolFeeShareSynced(prev, newShareBps);
+    }
+
+    /// @inheritdoc IOTCOperatorFactory
+    function setDeliveryFeeWaived() external override onlyRegistry {
+        deliveryFeeWaived = true;
+        emit DeliveryFeeWaived();
+    }
+
+    /// @inheritdoc IOTCOperatorFactory
     function getCurrentFeeSnapshot() external view override returns (OTCTypes.FeeSnapshot memory snapshot) {
         OTCTypes.OperatorFeeConfig memory config = defaultFeeConfig;
         snapshot = OTCTypes.FeeSnapshot({
             takerFeeBps: config.takerFeeBps,
             deliveryFeeBps: config.deliveryFeeBps,
             openP2PFeeBps: config.openP2PFeeBps,
-            protocolFeeShareBps: IOTCFactoryRegistry(registry).getProtocolFeeShareBps(address(this)),
+            protocolFeeShareBps: protocolFeeShareBps,
             operatorFeeReceiver: operatorFeeReceiver,
             protocolFeeReceiver: IOTCFactoryRegistry(registry).protocolFeeReceiver()
         });

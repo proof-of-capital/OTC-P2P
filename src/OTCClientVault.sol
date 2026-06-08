@@ -38,6 +38,9 @@ contract OTCClientVault is
     /// @inheritdoc IOTCClientVault
     OTCTypes.SwapAccessLevel public override swapAccessLevel;
 
+    /// @inheritdoc IOTCClientVault
+    OTCTypes.OperatorFeeConfig public override vaultFeeConfig;
+
     mapping(uint256 proposalId => OTCTypes.DeliveryProposal) private _deliveryProposals;
     mapping(uint256 proposalId => OTCTypes.SwapProposal) private _swapProposals;
 
@@ -69,6 +72,9 @@ contract OTCClientVault is
         factory = factory_;
         nextProposalId = 1;
         swapAccessLevel = OTCTypes.SwapAccessLevel.DeliveryOnly;
+        (uint16 takerBps, uint16 deliveryBps, uint16 openBps) = IOTCOperatorFactory(factory_).defaultFeeConfig();
+        vaultFeeConfig =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: takerBps, deliveryFeeBps: deliveryBps, openP2PFeeBps: openBps});
         _initializeDefaultLocks(defaultLockConfigs_);
     }
 
@@ -580,8 +586,39 @@ contract OTCClientVault is
         return account == operatorFactory.admin() || account == operatorFactory.owner();
     }
 
+    /// @inheritdoc IOTCClientVault
+    function syncFeeFromFactory() external override {
+        require(_isClientAdminOrOwner(msg.sender), NotAuthorized());
+        IOTCOperatorFactory f = IOTCOperatorFactory(factory);
+        (uint16 newTaker, uint16 newDelivery, uint16 newOpen) = f.defaultFeeConfig();
+        require(
+            newTaker <= vaultFeeConfig.takerFeeBps && newDelivery <= vaultFeeConfig.deliveryFeeBps
+                && newOpen <= vaultFeeConfig.openP2PFeeBps,
+            FeeNotImproved()
+        );
+        vaultFeeConfig =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: newTaker, deliveryFeeBps: newDelivery, openP2PFeeBps: newOpen});
+        emit VaultFeeConfigSynced(newTaker, newDelivery, newOpen);
+    }
+
     function _feeSnapshot() internal view returns (OTCTypes.FeeSnapshot memory) {
-        return IOTCOperatorFactory(factory).getCurrentFeeSnapshot();
+        IOTCOperatorFactory f = IOTCOperatorFactory(factory);
+        return OTCTypes.FeeSnapshot({
+            takerFeeBps: vaultFeeConfig.takerFeeBps,
+            deliveryFeeBps: vaultFeeConfig.deliveryFeeBps,
+            openP2PFeeBps: vaultFeeConfig.openP2PFeeBps,
+            protocolFeeShareBps: f.protocolFeeShareBps(),
+            operatorFeeReceiver: f.operatorFeeReceiver(),
+            protocolFeeReceiver: f.protocolFeeReceiver()
+        });
+    }
+
+    /// @dev Like `_feeSnapshot()` but sets `protocolFeeShareBps = 0` when the delivery fee is waived.
+    function _deliveryFeeSnapshot() internal view returns (OTCTypes.FeeSnapshot memory snap) {
+        snap = _feeSnapshot();
+        if (IOTCOperatorFactory(factory).isDeliveryFeeWaived()) {
+            snap.protocolFeeShareBps = 0;
+        }
     }
 
     function _storeDeliveryProposal(
@@ -600,7 +637,7 @@ contract OTCClientVault is
         p.expectedReceivedToken = params.expectedReceivedToken;
         p.minExpectedReceivedAmount = params.minExpectedReceivedAmount;
         p.deadline = params.deadline;
-        p.feeSnapshot = _feeSnapshot();
+        p.feeSnapshot = _deliveryFeeSnapshot();
         p.extraFee = extraFee;
     }
 

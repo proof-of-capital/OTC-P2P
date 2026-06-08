@@ -15,4 +15,8 @@ interface IOTCOperatorFactoryEvents {
     event DefaultFeeConfigUpdated(uint16 takerFeeBps, uint16 deliveryFeeBps, uint16 openP2PFeeBps);
     /// @notice Emitted when the default lock duration for a token changes.
     event DefaultLockDurationUpdated(address indexed token, uint256 duration);
+    /// @notice Emitted when the locally cached protocol fee share is synced from the registry.
+    event ProtocolFeeShareSynced(uint16 previousShareBps, uint16 newShareBps);
+    /// @notice Emitted when the delivery fee is permanently waived by the registry.
+    event DeliveryFeeWaived();
 }

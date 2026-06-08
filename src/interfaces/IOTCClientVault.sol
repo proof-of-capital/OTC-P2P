@@ -19,6 +19,17 @@ interface IOTCClientVault {
     function factory() external view returns (address);
     /// @notice Maximum swap level currently enabled by the client (`DeliveryOnly` disables swap actions).
     function swapAccessLevel() external view returns (OTCTypes.SwapAccessLevel);
+
+    /// @notice Operator fee rates cached from the factory at vault initialization.
+    /// @return takerFeeBps Swap fee rate in basis points.
+    /// @return deliveryFeeBps Delivery fee rate in basis points.
+    /// @return openP2PFeeBps Open P2P fee rate in basis points.
+    function vaultFeeConfig() external view returns (uint16 takerFeeBps, uint16 deliveryFeeBps, uint16 openP2PFeeBps);
+
+    /// @notice Syncs the vault's cached fee rates from the factory, but only if every rate improves (decreases) for the user.
+    /// @dev Reverts with `FeeNotImproved` if any new rate is higher than the current cached rate.
+    function syncFeeFromFactory() external;
+
     /// @notice Auto-incrementing id assigned to the next proposal.
     function nextProposalId() external view returns (uint256);
     /// @notice Timestamp after which `token` may be withdrawn or used in open P2P swaps.

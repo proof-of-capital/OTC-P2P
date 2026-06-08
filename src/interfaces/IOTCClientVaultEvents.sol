@@ -46,4 +46,6 @@ interface IOTCClientVaultEvents {
     event SwapExecuted(uint256 indexed proposalId);
     /// @notice Emitted when any proposal type is cancelled.
     event ProposalCancelled(uint256 indexed proposalId);
+    /// @notice Emitted when the vault's cached operator fee rates are synced to lower values from the factory.
+    event VaultFeeConfigSynced(uint16 takerFeeBps, uint16 deliveryFeeBps, uint16 openP2PFeeBps);
 }

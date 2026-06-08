@@ -12,6 +12,7 @@ import {OTCClientVault} from "../src/OTCClientVault.sol";
 import {OTCOperatorFactory} from "../src/OTCOperatorFactory.sol";
 import {OTCFactoryRegistry} from "../src/OTCFactoryRegistry.sol";
 import {IOTCClientVaultErrors} from "../src/interfaces/IOTCClientVaultErrors.sol";
+import {IOTCClientVaultEvents} from "../src/interfaces/IOTCClientVaultEvents.sol";
 import {IOTCFactoryRegistryErrors} from "../src/interfaces/IOTCFactoryRegistryErrors.sol";
 
 contract MockERC20 is ERC20 {
@@ -714,10 +715,13 @@ contract OTCCoverageGapsTest is Test {
     // ── Group 4: Fee edge cases ───────────────────────────────────────────────────
 
     function testChargeFee_ZeroBps() public {
+        // 0 < 100 (current) → sync is allowed
         OTCTypes.OperatorFeeConfig memory zeroFeeConfig =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 0, deliveryFeeBps: 0, openP2PFeeBps: 0});
         vm.prank(operatorOwner);
         factory.setDefaultFeeConfig(zeroFeeConfig);
+        vm.prank(client);
+        vault.syncFeeFromFactory();
 
         _deposit(address(usdt), 1_000);
         uint256 id = _proposeDirectDelivery(address(usdt), 500, recipient, emptyExtraFee);
@@ -730,22 +734,23 @@ contract OTCCoverageGapsTest is Test {
         assertEq(usdt.balanceOf(operatorReceiver), 0);
     }
 
-    function testChargeFee_FullProtocolFeeShare() public {
-        // Set protocol fee share to 100% so operator net fee = 0
+    function testChargeFee_DeliveryProtocolFeeWaived() public {
+        // When delivery fee is waived, protocol receives 0 share of the delivery fee.
+        // Taker/openP2P fees are unaffected by the waiver.
+        // Delivery: 500 USDT, 100 bps fee (Gross) → fee = 5
+        // With waiver: protocolFee = 0, operatorFee = 5
         vm.prank(protocolOwner);
-        registry.setCustomProtocolFeeShareBps(address(factory), 10_000);
+        registry.setOperatorDeliveryFeeWaived(address(factory));
 
-        // Deposit extra to cover fee: delivery = 10_000, fee = 10_000 * 100bps / 10_000 = 100
-        _deposit(address(usdt), 10_100);
-        uint256 id = _proposeDirectDelivery(address(usdt), 10_000, recipient, emptyExtraFee);
+        _deposit(address(usdt), 1_000);
+        uint256 id = _proposeDirectDelivery(address(usdt), 500, recipient, emptyExtraFee);
         vm.prank(client);
         vault.acceptDeliveryProposal(id);
         vault.executeDelivery(id);
 
-        // protocolShare = 10_000/10_000 → all 100 to protocol, 0 to operator
-        assertEq(usdt.balanceOf(recipient), 10_000);
-        assertEq(usdt.balanceOf(protocolReceiver), 100);
-        assertEq(usdt.balanceOf(operatorReceiver), 0);
+        assertEq(usdt.balanceOf(recipient), 500);
+        assertEq(usdt.balanceOf(protocolReceiver), 0); // waived
+        assertEq(usdt.balanceOf(operatorReceiver), 5); // full fee to operator
     }
 
     function testExtraFee_RevertsNonZeroAmountZeroToken() public {
@@ -1238,5 +1243,91 @@ contract OTCCoverageGapsTest is Test {
 
         vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
         mockFactory.registerZeroClient(address(vault));
+    }
+
+    // ── Vault fee config caching ─────────────────────────────────────────────────
+
+    function testVaultInitialize_CopiesFeeRatesFromFactory() public view {
+        (uint16 takerBps, uint16 deliveryBps, uint16 openBps) = vault.vaultFeeConfig();
+        assertEq(takerBps, 100);
+        assertEq(deliveryBps, 100);
+        assertEq(openBps, 50);
+    }
+
+    function testSyncFeeFromFactory_SucceedsWhenFeesDecrease() public {
+        OTCTypes.OperatorFeeConfig memory lowerConfig =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 50, deliveryFeeBps: 50, openP2PFeeBps: 25});
+        vm.prank(operatorOwner);
+        factory.setDefaultFeeConfig(lowerConfig);
+
+        vm.prank(client);
+        vault.syncFeeFromFactory();
+
+        (uint16 takerBps, uint16 deliveryBps, uint16 openBps) = vault.vaultFeeConfig();
+        assertEq(takerBps, 50);
+        assertEq(deliveryBps, 50);
+        assertEq(openBps, 25);
+    }
+
+    function testSyncFeeFromFactory_SucceedsWhenFeesEqual() public {
+        // Same fees as current — allowed (not worse for user)
+        vm.prank(client);
+        vault.syncFeeFromFactory();
+
+        (uint16 takerBps, uint16 deliveryBps, uint16 openBps) = vault.vaultFeeConfig();
+        assertEq(takerBps, 100);
+        assertEq(deliveryBps, 100);
+        assertEq(openBps, 50);
+    }
+
+    function testSyncFeeFromFactory_RevertsWhenAnyFeeIncreases() public {
+        OTCTypes.OperatorFeeConfig memory higherConfig =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 50, deliveryFeeBps: 200, openP2PFeeBps: 25});
+        vm.prank(operatorOwner);
+        factory.setDefaultFeeConfig(higherConfig);
+
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.FeeNotImproved.selector);
+        vault.syncFeeFromFactory();
+    }
+
+    function testSyncFeeFromFactory_EmitsEvent() public {
+        OTCTypes.OperatorFeeConfig memory lowerConfig =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 50, deliveryFeeBps: 75, openP2PFeeBps: 25});
+        vm.prank(operatorOwner);
+        factory.setDefaultFeeConfig(lowerConfig);
+
+        vm.prank(client);
+        vm.expectEmit(false, false, false, true);
+        emit IOTCClientVaultEvents.VaultFeeConfigSynced(50, 75, 25);
+        vault.syncFeeFromFactory();
+    }
+
+    function testSyncFeeFromFactory_RevertsStranger() public {
+        vm.prank(address(0x9999));
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.syncFeeFromFactory();
+    }
+
+    function testFeeSnapshot_StaleAfterFactoryFeeIncrease() public {
+        // Factory raises fees — sync is blocked, vault keeps original rates
+        OTCTypes.OperatorFeeConfig memory newConfig =
+            OTCTypes.OperatorFeeConfig({takerFeeBps: 500, deliveryFeeBps: 500, openP2PFeeBps: 500});
+        vm.prank(operatorOwner);
+        factory.setDefaultFeeConfig(newConfig);
+
+        // Snapshot (captured at proposal creation) should still use vault's stale cached rates
+        _deposit(address(usdt), 1_000);
+        uint256 id = _proposeDirectDelivery(address(usdt), 500, recipient, emptyExtraFee);
+        vm.prank(client);
+        vault.acceptDeliveryProposal(id);
+        vault.executeDelivery(id);
+
+        // With old 100 bps delivery fee (Gross): fee = 500 * 100 / 10_000 = 5
+        // protocolFee = 5 * 1_000 / 10_000 = 0 (rounds down), operatorFee = 5
+        // Key point: NOT using new 500 bps (which would give 25)
+        assertEq(usdt.balanceOf(recipient), 500);
+        assertEq(usdt.balanceOf(operatorReceiver), 5);
+        assertTrue(usdt.balanceOf(operatorReceiver) < 25, "should use old 100bps, not new 500bps");
     }
 }

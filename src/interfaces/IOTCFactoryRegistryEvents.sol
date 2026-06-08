@@ -13,12 +13,12 @@ interface IOTCFactoryRegistryEvents {
     event ProtocolFeeReceiverUpdated(address indexed previousReceiver, address indexed newReceiver);
     /// @notice Emitted when the default protocol fee share changes.
     event DefaultProtocolFeeShareUpdated(uint16 previousShareBps, uint16 newShareBps);
-    /// @notice Emitted when the protocol fee waiver flag changes for an operator factory.
-    event OperatorProtocolFeeWaived(address indexed operatorFactory, bool waived);
-    /// @notice Emitted when a custom protocol fee share is set for an operator factory.
-    event CustomProtocolFeeShareUpdated(address indexed operatorFactory, uint16 shareBps);
-    /// @notice Emitted when a custom protocol fee share is cleared for an operator factory.
-    event CustomProtocolFeeShareCleared(address indexed operatorFactory);
+    /// @notice Emitted when the delivery protocol fee is permanently waived for an operator factory.
+    event OperatorDeliveryFeeWaived(address indexed operatorFactory);
+    /// @notice Emitted when registry decreases a factory's protocol fee share.
+    event FactoryProtocolFeeShareDecreased(
+        address indexed operatorFactory, uint16 previousShareBps, uint16 newShareBps
+    );
     /// @notice Emitted when the client vault implementation address is updated.
     event ClientVaultImplementationUpdated(address indexed previousImpl, address indexed newImpl);
 }

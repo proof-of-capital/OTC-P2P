@@ -71,4 +71,6 @@ interface IOTCClientVaultErrors {
     error InvalidSwapLevel();
     /// @notice Proposal level is above the vault's configured maximum.
     error SwapLevelNotAllowed();
+    /// @notice Fee sync rejected: new rates are not better for the user (at least one fee increased).
+    error FeeNotImproved();
 }

@@ -10,18 +10,16 @@ interface IOTCFactoryRegistry {
 
     /// @notice Address that receives the protocol portion of operator fees.
     function protocolFeeReceiver() external view returns (address);
-    /// @notice Default protocol fee share in basis points applied to all operator factories without an override.
+    /// @notice Default protocol fee share (bps) assigned to new factories at deployment time.
+    /// @dev Existing factories are not affected by changes to this value.
     function defaultProtocolFeeShareBps() external view returns (uint16);
     /// @notice Whether `operatorFactory` is a factory deployed by this registry.
     function isOperatorFactory(address operatorFactory) external view returns (bool);
     /// @notice Whether `vault` is a client vault registered under this registry.
     function isVault(address vault) external view returns (bool);
-    /// @notice Whether the protocol fee is waived for `operatorFactory`.
-    function isProtocolFeeWaived(address operatorFactory) external view returns (bool);
-    /// @notice Custom protocol fee share override for `operatorFactory` in basis points.
-    function customProtocolFeeShareBps(address operatorFactory) external view returns (uint16);
-    /// @notice Whether `operatorFactory` has a custom protocol fee share set.
-    function hasCustomProtocolFeeShare(address operatorFactory) external view returns (bool);
+    /// @notice Whether the protocol share of the delivery fee is waived for `operatorFactory`.
+    /// @dev Reads directly from the factory's own storage.
+    function isDeliveryFeeWaived(address operatorFactory) external view returns (bool);
     /// @notice Operator factory deployed at index `index`.
     function operatorFactories(uint256 index) external view returns (address);
 
@@ -48,23 +46,21 @@ interface IOTCFactoryRegistry {
     /// @param newReceiver New protocol fee receiver; must be non-zero.
     function setProtocolFeeReceiver(address newReceiver) external;
 
-    /// @notice Updates the default protocol fee share applied when no override exists.
-    /// @param newShareBps New share in basis points; must be ≤ 10 000.
+    /// @notice Updates the default protocol fee share used for new factory deployments.
+    /// @dev Does not affect existing factories. Must be ≥ MIN_PROTOCOL_FEE_SHARE_BPS (10 %).
+    /// @param newShareBps New share in basis points.
     function setDefaultProtocolFeeShareBps(uint16 newShareBps) external;
 
-    /// @notice Waives or restores the protocol fee for a specific operator factory.
+    /// @notice Permanently waives the protocol share of delivery fees for an operator factory.
+    /// @dev Irreversible — once waived, cannot be undone. Taker/openP2P fees are unaffected.
     /// @param operatorFactory Target operator factory.
-    /// @param waived `true` to waive, `false` to restore.
-    function setOperatorProtocolFeeWaived(address operatorFactory, bool waived) external;
+    function setOperatorDeliveryFeeWaived(address operatorFactory) external;
 
-    /// @notice Sets a custom protocol fee share for a specific operator factory.
+    /// @notice Decreases the protocol fee share for a specific operator factory.
+    /// @dev Cannot increase — only decreases down to MIN_PROTOCOL_FEE_SHARE_BPS (10 %) are allowed.
     /// @param operatorFactory Target operator factory.
-    /// @param shareBps Custom share in basis points; must be ≤ 10 000.
-    function setCustomProtocolFeeShareBps(address operatorFactory, uint16 shareBps) external;
-
-    /// @notice Removes the custom protocol fee share override, reverting to the default.
-    /// @param operatorFactory Target operator factory.
-    function clearCustomProtocolFeeShareBps(address operatorFactory) external;
+    /// @param newShareBps New share in basis points; must be < current value and ≥ 1 000.
+    function setFactoryProtocolFeeShareBps(address operatorFactory, uint16 newShareBps) external;
 
     /// @notice Returns the effective protocol fee share for `operatorFactory`.
     /// @param operatorFactory Target operator factory.

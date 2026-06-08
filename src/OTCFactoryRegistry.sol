@@ -8,6 +8,7 @@ import {IOTCFactoryRegistry} from "./interfaces/IOTCFactoryRegistry.sol";
 import {IOTCFactoryRegistryErrors} from "./interfaces/IOTCFactoryRegistryErrors.sol";
 import {IOTCFactoryRegistryEvents} from "./interfaces/IOTCFactoryRegistryEvents.sol";
 import {OTCOperatorFactory} from "./OTCOperatorFactory.sol";
+import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
 import {OTCClientVault} from "./OTCClientVault.sol";
 
 /// @title OTCFactoryRegistry
@@ -18,19 +19,14 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
 
     /// @notice Address that receives the protocol portion of operator fees.
     address public protocolFeeReceiver;
-    /// @notice Default protocol fee share in basis points applied when no per-operator override exists.
+    /// @notice Default protocol fee share (bps) assigned to new factories at deployment time.
+    /// @dev Changing this does not affect existing factories. Min MIN_PROTOCOL_FEE_SHARE_BPS.
     uint16 public defaultProtocolFeeShareBps;
 
     /// @notice Whether `operatorFactory` was deployed by this registry.
     mapping(address operatorFactory => bool) public isOperatorFactory;
     /// @notice Whether `vault` is a client vault registered under this registry.
     mapping(address vault => bool) public isVault;
-    /// @notice Whether the protocol fee is waived for `operatorFactory`.
-    mapping(address operatorFactory => bool) public isProtocolFeeWaived;
-    /// @notice Custom protocol fee share override for `operatorFactory` in basis points.
-    mapping(address operatorFactory => uint16) public customProtocolFeeShareBps;
-    /// @notice Whether `operatorFactory` has a custom protocol fee share set.
-    mapping(address operatorFactory => bool) public hasCustomProtocolFeeShare;
 
     /// @notice Ordered list of operator factories deployed through this registry.
     address[] public operatorFactories;
@@ -42,6 +38,10 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         require(
             initialDefaultProtocolFeeShareBps <= OTCConstants.MAX_FEE_BPS,
             ProtocolFeeShareTooLarge(initialDefaultProtocolFeeShareBps, OTCConstants.MAX_FEE_BPS)
+        );
+        require(
+            initialDefaultProtocolFeeShareBps >= OTCConstants.MIN_PROTOCOL_FEE_SHARE_BPS,
+            ProtocolFeeShareTooLow(initialDefaultProtocolFeeShareBps, OTCConstants.MIN_PROTOCOL_FEE_SHARE_BPS)
         );
 
         clientVaultImplementation = address(new OTCClientVault());
@@ -63,7 +63,14 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         _requireValidFeeConfig(defaultFeeConfig);
 
         operatorFactory = address(
-            new OTCOperatorFactory(address(this), operatorOwner, operatorAdmin, operatorFeeReceiver, defaultFeeConfig)
+            new OTCOperatorFactory(
+                address(this),
+                operatorOwner,
+                operatorAdmin,
+                operatorFeeReceiver,
+                defaultFeeConfig,
+                defaultProtocolFeeShareBps
+            )
         );
         isOperatorFactory[operatorFactory] = true;
         operatorFactories.push(operatorFactory);
@@ -105,41 +112,43 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         require(
             newShareBps <= OTCConstants.MAX_FEE_BPS, ProtocolFeeShareTooLarge(newShareBps, OTCConstants.MAX_FEE_BPS)
         );
+        require(
+            newShareBps >= OTCConstants.MIN_PROTOCOL_FEE_SHARE_BPS,
+            ProtocolFeeShareTooLow(newShareBps, OTCConstants.MIN_PROTOCOL_FEE_SHARE_BPS)
+        );
         uint16 previousShareBps = defaultProtocolFeeShareBps;
         defaultProtocolFeeShareBps = newShareBps;
         emit DefaultProtocolFeeShareUpdated(previousShareBps, newShareBps);
     }
 
     /// @inheritdoc IOTCFactoryRegistry
-    function setOperatorProtocolFeeWaived(address operatorFactory, bool waived) external override onlyOwner {
-        require(isOperatorFactory[operatorFactory], NotOperatorFactory());
-        isProtocolFeeWaived[operatorFactory] = waived;
-        emit OperatorProtocolFeeWaived(operatorFactory, waived);
+    function isDeliveryFeeWaived(address operatorFactory) external view override returns (bool) {
+        return IOTCOperatorFactory(operatorFactory).isDeliveryFeeWaived();
     }
 
     /// @inheritdoc IOTCFactoryRegistry
-    function setCustomProtocolFeeShareBps(address operatorFactory, uint16 shareBps) external override onlyOwner {
+    function setOperatorDeliveryFeeWaived(address operatorFactory) external override onlyOwner {
         require(isOperatorFactory[operatorFactory], NotOperatorFactory());
-        require(shareBps <= OTCConstants.MAX_FEE_BPS, ProtocolFeeShareTooLarge(shareBps, OTCConstants.MAX_FEE_BPS));
-
-        customProtocolFeeShareBps[operatorFactory] = shareBps;
-        hasCustomProtocolFeeShare[operatorFactory] = true;
-        emit CustomProtocolFeeShareUpdated(operatorFactory, shareBps);
+        IOTCOperatorFactory(operatorFactory).setDeliveryFeeWaived();
+        emit OperatorDeliveryFeeWaived(operatorFactory);
     }
 
     /// @inheritdoc IOTCFactoryRegistry
-    function clearCustomProtocolFeeShareBps(address operatorFactory) external override onlyOwner {
+    function setFactoryProtocolFeeShareBps(address operatorFactory, uint16 newShareBps) external override onlyOwner {
         require(isOperatorFactory[operatorFactory], NotOperatorFactory());
-        delete customProtocolFeeShareBps[operatorFactory];
-        delete hasCustomProtocolFeeShare[operatorFactory];
-        emit CustomProtocolFeeShareCleared(operatorFactory);
+        uint16 current = IOTCOperatorFactory(operatorFactory).protocolFeeShareBps();
+        require(newShareBps < current, ProtocolFeeCannotIncrease(newShareBps, current));
+        require(
+            newShareBps >= OTCConstants.MIN_PROTOCOL_FEE_SHARE_BPS,
+            ProtocolFeeShareTooLow(newShareBps, OTCConstants.MIN_PROTOCOL_FEE_SHARE_BPS)
+        );
+        IOTCOperatorFactory(operatorFactory).setProtocolFeeShareBps(newShareBps);
+        emit FactoryProtocolFeeShareDecreased(operatorFactory, current, newShareBps);
     }
 
     /// @inheritdoc IOTCFactoryRegistry
     function getProtocolFeeShareBps(address operatorFactory) external view override returns (uint16) {
-        if (isProtocolFeeWaived[operatorFactory]) return 0;
-        if (hasCustomProtocolFeeShare[operatorFactory]) return customProtocolFeeShareBps[operatorFactory];
-        return defaultProtocolFeeShareBps;
+        return IOTCOperatorFactory(operatorFactory).protocolFeeShareBps();
     }
 
     /// @inheritdoc IOTCFactoryRegistry

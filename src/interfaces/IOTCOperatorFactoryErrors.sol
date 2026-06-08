@@ -15,4 +15,6 @@ interface IOTCOperatorFactoryErrors {
     error LockDurationTooLarge(uint256 duration, uint256 maxAllowed);
     /// @notice Input arrays have different lengths.
     error ArrayLengthMismatch(uint256 a, uint256 b);
+    /// @notice Caller is not the registry that owns this factory.
+    error NotRegistry();
 }

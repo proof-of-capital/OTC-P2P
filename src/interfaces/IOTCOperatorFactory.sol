@@ -26,6 +26,16 @@ interface IOTCOperatorFactory {
     /// @return openP2PFeeBps Open P2P fee rate in basis points.
     function defaultFeeConfig() external view returns (uint16 takerFeeBps, uint16 deliveryFeeBps, uint16 openP2PFeeBps);
 
+    /// @notice Protocol fee share (in bps) cached locally from the registry.
+    /// @dev Set at factory deployment from registry default; can only decrease via syncProtocolFeeShare().
+    function protocolFeeShareBps() external view returns (uint16);
+
+    /// @notice Protocol fee receiver — read dynamically from the registry.
+    function protocolFeeReceiver() external view returns (address);
+
+    /// @notice Whether the protocol share of the delivery fee is waived for this factory — read from registry.
+    function isDeliveryFeeWaived() external view returns (bool);
+
     /// @notice Default lock duration in seconds for `token`.
     function defaultLockDuration(address token) external view returns (uint256);
 
@@ -64,6 +74,15 @@ interface IOTCOperatorFactory {
     /// @notice Returns a complete fee snapshot for use by client vaults at proposal creation time.
     /// @return snapshot Current fee rates, receivers, and protocol share.
     function getCurrentFeeSnapshot() external view returns (OTCTypes.FeeSnapshot memory snapshot);
+
+    /// @notice Sets the protocol fee share. Only callable by the registry.
+    /// @dev Registry enforces the decrease-only constraint and minimum floor.
+    /// @param newShareBps New protocol fee share in basis points.
+    function setProtocolFeeShareBps(uint16 newShareBps) external;
+
+    /// @notice Permanently waives the protocol share of delivery fees. Only callable by the registry.
+    /// @dev Irreversible — once waived, cannot be undone.
+    function setDeliveryFeeWaived() external;
 
     /// @notice Returns the total number of client vaults deployed by this factory.
     function getVaultsCount() external view returns (uint256);
