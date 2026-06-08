@@ -40,10 +40,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     /// @notice Ordered list of client vaults deployed by this factory.
     address[] public vaults;
 
-    function owner() public view override(Ownable, IOTCOperatorFactory) returns (address) {
-        return Ownable.owner();
-    }
-
     modifier onlyRegistry() {
         require(msg.sender == registry, NotRegistry());
         _;

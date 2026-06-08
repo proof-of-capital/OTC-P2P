@@ -578,12 +578,12 @@ contract OTCClientVault is
 
     function _isClientAdminOrOwner(address account) internal view returns (bool) {
         IOTCOperatorFactory operatorFactory = IOTCOperatorFactory(factory);
-        return account == owner() || account == operatorFactory.admin() || account == operatorFactory.owner();
+        return account == owner() || account == operatorFactory.admin() || account == Ownable(factory).owner();
     }
 
     function _isFactoryAdminOrOwner(address account) internal view returns (bool) {
         IOTCOperatorFactory operatorFactory = IOTCOperatorFactory(factory);
-        return account == operatorFactory.admin() || account == operatorFactory.owner();
+        return account == operatorFactory.admin() || account == Ownable(factory).owner();
     }
 
     /// @inheritdoc IOTCClientVault

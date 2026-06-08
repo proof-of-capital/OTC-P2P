@@ -7,8 +7,6 @@ import {OTCTypes} from "../types/OTCTypes.sol";
 interface IOTCOperatorFactory {
     /// @notice Immutable registry this factory is registered in.
     function registry() external view returns (address);
-    /// @notice Factory owner with full governance rights.
-    function owner() external view returns (address);
     /// @notice Factory admin allowed to propose transactions in client vaults.
     function admin() external view returns (address);
     /// @notice Address that receives the operator's net fee revenue.
