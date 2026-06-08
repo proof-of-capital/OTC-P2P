@@ -50,22 +50,30 @@ contract OTCOperatorFactoryTest is Test {
     }
 
     function testConstructor_RevertsZeroRegistry() public {
-        vm.expectRevert(IOTCOperatorFactoryErrors.InvalidAddress.selector);
+        vm.expectRevert(IOTCOperatorFactoryErrors.NotRegistry.selector);
         new OTCOperatorFactory(address(0), operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, 1_000);
+    }
+
+    function testConstructor_RevertsIfNotDeployedByRegistry() public {
+        vm.expectRevert(IOTCOperatorFactoryErrors.NotRegistry.selector);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, 1_000);
     }
 
     function testConstructor_RevertsZeroOwner() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
+        vm.prank(address(registry));
         new OTCOperatorFactory(address(registry), address(0), operatorAdmin, operatorReceiver, defaultConfig, 1_000);
     }
 
     function testConstructor_RevertsZeroAdmin() public {
         vm.expectRevert(IOTCOperatorFactoryErrors.InvalidAddress.selector);
+        vm.prank(address(registry));
         new OTCOperatorFactory(address(registry), operatorOwner, address(0), operatorReceiver, defaultConfig, 1_000);
     }
 
     function testConstructor_RevertsZeroFeeReceiver() public {
         vm.expectRevert(IOTCOperatorFactoryErrors.InvalidAddress.selector);
+        vm.prank(address(registry));
         new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, address(0), defaultConfig, 1_000);
     }
 
@@ -73,6 +81,7 @@ contract OTCOperatorFactoryTest is Test {
         OTCTypes.OperatorFeeConfig memory bad =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 10_001, deliveryFeeBps: 100, openP2PFeeBps: 50});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
+        vm.prank(address(registry));
         new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
     }
 
@@ -80,6 +89,7 @@ contract OTCOperatorFactoryTest is Test {
         OTCTypes.OperatorFeeConfig memory bad =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 10_001, openP2PFeeBps: 50});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
+        vm.prank(address(registry));
         new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
     }
 
@@ -87,6 +97,7 @@ contract OTCOperatorFactoryTest is Test {
         OTCTypes.OperatorFeeConfig memory bad =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 10_001});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
+        vm.prank(address(registry));
         new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
     }
 

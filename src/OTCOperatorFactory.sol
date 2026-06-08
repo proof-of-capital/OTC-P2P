@@ -53,7 +53,7 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         OTCTypes.OperatorFeeConfig memory defaultFeeConfig_,
         uint16 initialProtocolFeeShareBps_
     ) Ownable(owner_) {
-        require(registry_ != address(0), InvalidAddress());
+        require(msg.sender == registry_, NotRegistry());
         require(admin_ != address(0), InvalidAddress());
         require(operatorFeeReceiver_ != address(0), InvalidAddress());
         _requireValidFeeConfig(defaultFeeConfig_);
