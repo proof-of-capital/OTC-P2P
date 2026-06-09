@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
+import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {OTCTypes} from "../src/types/OTCTypes.sol";
 import {OTCConstants} from "../src/constants/OTCConstants.sol";
@@ -13,6 +14,7 @@ import {IOTCOperatorFactoryErrors} from "../src/interfaces/IOTCOperatorFactoryEr
 import {IOTCOperatorFactoryEvents} from "../src/interfaces/IOTCOperatorFactoryEvents.sol";
 
 contract OTCOperatorFactoryTest is Test {
+    using stdStorage for StdStorage;
     address protocolOwner = address(0x1001);
     address protocolReceiver = address(0x1002);
     address operatorOwner = address(0x2001);

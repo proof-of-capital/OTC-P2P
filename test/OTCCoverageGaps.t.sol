@@ -6,6 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {OTCTypes} from "../src/types/OTCTypes.sol";
 import {OTCConstants} from "../src/constants/OTCConstants.sol";
 import {OTCClientVault} from "../src/OTCClientVault.sol";
@@ -177,6 +178,65 @@ contract OTCCoverageGapsTest is Test {
         vm.stopPrank();
     }
 
+    function testDeposit_RevertsZeroToken() public {
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        vault.deposit(address(0), 100);
+    }
+
+    function testDeposit_RevertsZeroAmount() public {
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAmount.selector);
+        vault.deposit(address(usdt), 0);
+    }
+
+    function testInitialize_RevertsZeroFactory() public {
+        address impl = registry.clientVaultImplementation();
+        address proxy = Clones.clone(impl);
+        OTCTypes.DefaultLockConfig[] memory locks = new OTCTypes.DefaultLockConfig[](0);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        OTCClientVault(payable(proxy)).initialize(address(0), client, locks);
+    }
+
+    function testInitialize_RevertsZeroClient() public {
+        address impl = registry.clientVaultImplementation();
+        address proxy = Clones.clone(impl);
+        OTCTypes.DefaultLockConfig[] memory locks = new OTCTypes.DefaultLockConfig[](0);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        OTCClientVault(payable(proxy)).initialize(address(factory), address(0), locks);
+    }
+
+    function testDeployClientVault_RevertsDefaultLockZeroToken() public {
+        vm.prank(operatorOwner);
+        factory.setDefaultLockDuration(address(usdt), 1 days);
+
+        vm.prank(operatorOwner);
+        factory.setDefaultLockDuration(address(usdt), 0);
+
+        OTCTypes.DefaultLockConfig[] memory locks = new OTCTypes.DefaultLockConfig[](1);
+        locks[0] = OTCTypes.DefaultLockConfig({token: address(0), duration: 1 days});
+
+        address impl = registry.clientVaultImplementation();
+        address proxy = Clones.clone(impl);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        OTCClientVault(payable(proxy)).initialize(address(factory), client, locks);
+    }
+
+    function testDeployClientVault_RevertsDefaultLockDurationTooLarge() public {
+        uint256 tooLarge = OTCConstants.MAX_LOCK_DURATION + 1;
+        OTCTypes.DefaultLockConfig[] memory locks = new OTCTypes.DefaultLockConfig[](1);
+        locks[0] = OTCTypes.DefaultLockConfig({token: address(usdt), duration: tooLarge});
+
+        address impl = registry.clientVaultImplementation();
+        address proxy = Clones.clone(impl);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOTCClientVaultErrors.LockDurationTooLarge.selector, tooLarge, OTCConstants.MAX_LOCK_DURATION
+            )
+        );
+        OTCClientVault(payable(proxy)).initialize(address(factory), client, locks);
+    }
+
     function testDirectTransfer_IncreasesVaultBalance() public {
         usdt.mint(client, 1_000);
         vm.prank(client);
@@ -321,6 +381,25 @@ contract OTCCoverageGapsTest is Test {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.ProposalAlreadyCancelled.selector);
         vault.acceptLockProposal(lockId);
+    }
+
+    function testProposeLock_RevertsNotAdmin() public {
+        vm.prank(stranger);
+        vm.expectRevert(IOTCClientVaultErrors.NotFactoryAdmin.selector);
+        vault.proposeLock(address(usdt), block.timestamp + 1 days, block.timestamp + 1 days);
+    }
+
+    function testCancelLockProposal_RevertsStranger() public {
+        uint256 lockId = _proposeLock(address(usdt), 1 days);
+        vm.prank(stranger);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.cancelLockProposal(lockId);
+    }
+
+    function testAdminDecreaseLock_RevertsZeroToken() public {
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        vault.adminDecreaseLock(address(0), block.timestamp + 1 days);
     }
 
     // ── Group 3: Delivery proposal edge cases ────────────────────────────────────
@@ -706,6 +785,122 @@ contract OTCCoverageGapsTest is Test {
         assertFalse(proposal.clientApproved);
         assertFalse(proposal.executed);
         assertFalse(proposal.cancelled);
+    }
+
+    function testCancelDeliveryProposal_RevertsStranger() public {
+        uint256 id = _proposeDirectDelivery(address(usdt), 100, recipient, emptyExtraFee);
+        vm.prank(stranger);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vault.cancelDeliveryProposal(id);
+    }
+
+    function testAcceptDeliveryProposal_RevertsInvalidProposal() public {
+        vm.expectRevert(IOTCClientVaultErrors.InvalidProposal.selector);
+        vault.acceptDeliveryProposal(999);
+    }
+
+    function testProposeDelivery_RevertsZeroToken() public {
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(0),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testProposeDelivery_RevertsZeroAmount() public {
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAmount.selector);
+        vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 0,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testProposeDelivery_RevertsExpiredDeadline() public {
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidDeadline.selector);
+        vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testProposeDelivery_RevertsZeroExtraFeeReceiver() public {
+        // amount>0, token set, receiver=0 → covers line 547 (InvalidExtraFeeReceiver for nonzero amount)
+        OTCTypes.ExtraFee memory badFee = OTCTypes.ExtraFee({token: address(usdt), amount: 10, receiver: address(0)});
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidExtraFeeReceiver.selector);
+        vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            badFee
+        );
+    }
+
+    function testProposeDelivery_RevertsExtraFeeZeroAmountNonZeroReceiver() public {
+        // amount=0, token=0, receiver nonzero → covers line 543 (InvalidExtraFeeReceiver inside amount==0 branch)
+        OTCTypes.ExtraFee memory badFee = OTCTypes.ExtraFee({token: address(0), amount: 0, receiver: extraReceiver});
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidExtraFeeReceiver.selector);
+        vault.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            badFee
+        );
     }
 
     // ── Group 4: Fee edge cases ───────────────────────────────────────────────────
@@ -1209,6 +1404,102 @@ contract OTCCoverageGapsTest is Test {
         vm.prank(client);
         vm.expectRevert(IOTCClientVaultErrors.ProposalAlreadyCancelled.selector);
         vault.approveSwap(swapId);
+    }
+
+    function testCreateSwapProposal_RevertsZeroCounterparty() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidAddress.selector);
+        vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.ManagedP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: address(0),
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testCreateSwapProposal_RevertsZeroTokens() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidSwapTokens.selector);
+        vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.ManagedP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(0),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testCreateSwapProposal_RevertsZeroAmounts() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidSwapAmounts.selector);
+        vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.ManagedP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(usdt),
+                amountOut: 0,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testCreateSwapProposal_RevertsExpiredDeadline() public {
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.InvalidDeadline.selector);
+        vault.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.ManagedP2P,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: counterparty,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp
+            }),
+            emptyExtraFee
+        );
+    }
+
+    function testExecuteSwap_RevertsClientNotApproved() public {
+        _deposit(address(usdt), 1_000);
+        weth.mint(counterparty, 100);
+        vm.prank(counterparty);
+        weth.approve(address(vault), 100);
+
+        _enableSwapLevel(OTCTypes.SwapAccessLevel.SupplierOnly);
+
+        // Admin creates the swap — adminApproved=true, but clientApproved=false
+        uint256 swapId = _createSwap(
+            operatorAdmin, OTCTypes.SwapAccessLevel.SupplierOnly, counterparty, address(usdt), 100, address(weth), 100
+        );
+
+        vm.prank(counterparty);
+        vault.approveSwap(swapId);
+
+        vm.expectRevert(IOTCClientVaultErrors.ClientNotApproved.selector);
+        vault.executeSwap(swapId);
     }
 
     // ── Group 6: OTCFactoryRegistry edge cases ────────────────────────────────────

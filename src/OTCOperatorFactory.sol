@@ -205,10 +205,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
 
     function _removeDefaultLockToken(address token) internal {
         uint256 indexPlusOne = defaultLockTokenIndexPlusOne[token];
-        if (indexPlusOne == 0) {
-            return;
-        }
-
         uint256 index = indexPlusOne - 1;
         uint256 lastIndex = defaultLockTokens.length - 1;
         if (index != lastIndex) {
