@@ -12,9 +12,6 @@ interface IOTCClientVault {
     function initialize(address factory_, address client_, OTCTypes.DefaultLockConfig[] memory defaultLockConfigs_)
         external;
 
-    /// @notice Accepts native ETH sent to the vault.
-    receive() external payable;
-
     /// @notice Operator factory that created this vault.
     function factory() external view returns (address);
     /// @notice Maximum swap level currently enabled by the client (`DeliveryOnly` disables swap actions).

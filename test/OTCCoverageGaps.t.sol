@@ -160,13 +160,13 @@ contract OTCCoverageGapsTest is Test {
         );
     }
 
-    // ── Group 1: receive() and withdrawal edge cases ──────────────────────────────
+    // ── Group 1: withdrawal edge cases ────────────────────────────────────────────
 
-    function testReceive_AcceptsEth() public {
+    function testReceive_RevertsEthTransfer() public {
         vm.deal(address(this), 1 ether);
         (bool ok,) = address(vault).call{value: 1 ether}("");
-        assertTrue(ok);
-        assertEq(address(vault).balance, 1 ether);
+        assertFalse(ok);
+        assertEq(address(vault).balance, 0);
     }
 
     function testDeposit_RevertsNotOwner() public {

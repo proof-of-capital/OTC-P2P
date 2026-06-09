@@ -79,9 +79,6 @@ contract OTCClientVault is
     }
 
     /// @inheritdoc IOTCClientVault
-    receive() external payable override {}
-
-    /// @inheritdoc IOTCClientVault
     /// @dev This path is optional and exists to reduce user mistakes with vault addresses.
     /// Tokens can be funded directly by transferring ERC20 to the vault address.
     function deposit(address token, uint256 amount) external override onlyOwner nonReentrant {
