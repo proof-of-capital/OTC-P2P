@@ -70,8 +70,9 @@ contract OTCP2PTest is Test {
         OTCTypes.OperatorFeeConfig memory config =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 50});
         vm.prank(operatorOwner);
-        factory =
-            OTCOperatorFactory(registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, config, ""));
+        factory = OTCOperatorFactory(
+            registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, config, "")
+        );
 
         vm.prank(operatorAdmin);
         vaultA = OTCClientVault(payable(factory.deployClientVault(clientA)));

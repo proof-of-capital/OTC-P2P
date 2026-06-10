@@ -83,9 +83,7 @@ contract OTCReferralTest is Test {
 
     function testRegisterAgent_RevertsBelowMin() public {
         vm.prank(protocolOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(IOTCFactoryRegistryErrors.AgentFeeOutOfRange.selector, 50, 100, 8_000)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.AgentFeeOutOfRange.selector, 50, 100, 8_000));
         registry.registerAgent(AGENT_ID, agentAddr, 50);
     }
 
@@ -112,9 +110,7 @@ contract OTCReferralTest is Test {
         vm.prank(protocolOwner);
         registry.registerAgent(AGENT_ID, agentAddr, 1_000);
         vm.prank(protocolOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(IOTCFactoryRegistryErrors.AgentFeeNotHigher.selector, 500, 1_000)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.AgentFeeNotHigher.selector, 500, 1_000));
         registry.increaseAgentFee(AGENT_ID, 500);
     }
 
@@ -122,9 +118,7 @@ contract OTCReferralTest is Test {
         vm.prank(protocolOwner);
         registry.registerAgent(AGENT_ID, agentAddr, 1_000);
         vm.prank(protocolOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(IOTCFactoryRegistryErrors.AgentFeeNotHigher.selector, 1_000, 1_000)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.AgentFeeNotHigher.selector, 1_000, 1_000));
         registry.increaseAgentFee(AGENT_ID, 1_000);
     }
 

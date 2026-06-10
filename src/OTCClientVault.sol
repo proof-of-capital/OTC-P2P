@@ -390,9 +390,7 @@ contract OTCClientVault is
         }
     }
 
-    function _chargeFee(address token, uint256 operatorFee, OTCTypes.FeeSnapshot memory snapshot)
-        internal
-    {
+    function _chargeFee(address token, uint256 operatorFee, OTCTypes.FeeSnapshot memory snapshot) internal {
         if (operatorFee == 0) return;
 
         IOTCOperatorFactory f = IOTCOperatorFactory(factory);

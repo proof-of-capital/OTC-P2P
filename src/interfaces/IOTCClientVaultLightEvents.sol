@@ -14,7 +14,9 @@ interface IOTCClientVaultLightEvents {
     /// @notice Emitted when the admin decreases an active token lock.
     event TokenLockDecreasedByAdmin(address indexed token, uint256 previousLockUntil, uint256 newLockUntil);
     /// @notice Emitted when a delivery proposal is created.
-    event DeliveryProposed(uint256 indexed proposalId, address indexed token, uint256 amount, address indexed deliveryAddress);
+    event DeliveryProposed(
+        uint256 indexed proposalId, address indexed token, uint256 amount, address indexed deliveryAddress
+    );
     /// @notice Emitted when the client or admin accepts a delivery proposal.
     event DeliveryAccepted(uint256 indexed proposalId);
     /// @notice Emitted when a delivery proposal is executed.

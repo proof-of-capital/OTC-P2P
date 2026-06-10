@@ -199,11 +199,7 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
     }
 
     /// @inheritdoc IOTCFactoryRegistry
-    function registerAgent(string calldata agentId, address agentAddress, uint16 feeBps)
-        external
-        override
-        onlyOwner
-    {
+    function registerAgent(string calldata agentId, address agentAddress, uint16 feeBps) external override onlyOwner {
         require(bytes(agentId).length > 0, EmptyAgentId());
         require(agentAddress != address(0), InvalidAddress());
         require(agents[agentId].agentAddress == address(0), AgentAlreadyRegistered(agentId));

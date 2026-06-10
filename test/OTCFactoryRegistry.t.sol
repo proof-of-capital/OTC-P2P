@@ -355,8 +355,9 @@ contract OTCFactoryRegistryTest is Test {
         // Use a registry starting at 25 % so there is room to decrease to the 10 % minimum.
         OTCFactoryRegistry r2 = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 2_500, 3_000);
         vm.prank(operatorOwner);
-        OTCOperatorFactory f2 =
-            OTCOperatorFactory(r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, ""));
+        OTCOperatorFactory f2 = OTCOperatorFactory(
+            r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, "")
+        );
 
         vm.prank(protocolOwner);
         vm.expectEmit(true, false, false, true);
@@ -396,8 +397,9 @@ contract OTCFactoryRegistryTest is Test {
     function testSetFactoryOtherProtocolFeeShareBps_Decreases() public {
         OTCFactoryRegistry r2 = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 2_500, 3_000);
         vm.prank(operatorOwner);
-        OTCOperatorFactory f2 =
-            OTCOperatorFactory(r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, ""));
+        OTCOperatorFactory f2 = OTCOperatorFactory(
+            r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, "")
+        );
 
         vm.prank(protocolOwner);
         vm.expectEmit(true, false, false, true);
@@ -433,8 +435,9 @@ contract OTCFactoryRegistryTest is Test {
         // Use a registry starting at 25 % to allow a decrease to 10 %.
         OTCFactoryRegistry r2 = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 2_500, 3_000);
         vm.prank(operatorOwner);
-        OTCOperatorFactory f2 =
-            OTCOperatorFactory(r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, ""));
+        OTCOperatorFactory f2 = OTCOperatorFactory(
+            r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, "")
+        );
 
         // Initialized to registry default at factory deploy time
         assertEq(r2.getDeliveryOnlyProtocolFeeShareBps(address(f2)), 2_500);
@@ -445,7 +448,6 @@ contract OTCFactoryRegistryTest is Test {
         r2.setFactoryDeliveryOnlyProtocolFeeShareBps(address(f2), 1_000);
         assertEq(r2.getDeliveryOnlyProtocolFeeShareBps(address(f2)), 1_000);
         assertEq(r2.getOtherProtocolFeeShareBps(address(f2)), 3_000);
-
     }
 
     // ── setClientVaultImplementation ─────────────────────────────────────────────
