@@ -25,4 +25,20 @@ interface IOTCFactoryRegistryErrors {
     error VaultFactoryMismatch(address vault, address expectedFactory, address actualFactory);
     /// @notice Factory does not recognize the vault as its own deployment.
     error VaultNotFactoryOwned(address operatorFactory, address vault);
+    /// @notice Agent ID is not registered in the registry.
+    error AgentNotRegistered(string agentId);
+    /// @notice New agent fee must be strictly higher than the current fee.
+    error AgentFeeNotHigher(uint16 newFeeBps, uint16 currentFeeBps);
+    /// @notice Agent fee is outside the allowed range.
+    error AgentFeeOutOfRange(uint16 feeBps, uint16 minAllowed, uint16 maxAllowed);
+    /// @notice Caller is not a registered vault.
+    error NotVault();
+    /// @notice Agent ID is already registered; use increaseAgentFee to update the fee.
+    error AgentAlreadyRegistered(string agentId);
+    /// @notice No pending fees to claim.
+    error NoPendingFees();
+    /// @notice Caller is not the current address of the agent.
+    error NotAgentOwner();
+    /// @notice Agent ID string must not be empty.
+    error EmptyAgentId();
 }

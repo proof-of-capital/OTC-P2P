@@ -71,7 +71,7 @@ contract OTCP2PTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 50});
         vm.prank(operatorOwner);
         factory =
-            OTCOperatorFactory(registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, config));
+            OTCOperatorFactory(registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, config, ""));
 
         vm.prank(operatorAdmin);
         vaultA = OTCClientVault(payable(factory.deployClientVault(clientA)));
@@ -214,7 +214,7 @@ contract OTCP2PTest is Test {
         vaultA.executeDelivery(proposalId);
 
         assertEq(usdt.balanceOf(recipient), 10_000);
-        assertEq(usdt.balanceOf(protocolReceiver), 10);
+        assertEq(registry.protocolPendingFees(address(usdt)), 10);
         assertEq(usdt.balanceOf(operatorReceiver), 90);
         assertEq(usdt.balanceOf(extraReceiver), 50);
     }
@@ -229,7 +229,7 @@ contract OTCP2PTest is Test {
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
         vaultA.executeDelivery(proposalId);
 
-        assertEq(usdt.balanceOf(protocolReceiver), 20);
+        assertEq(registry.protocolPendingFees(address(usdt)), 20);
         assertEq(usdt.balanceOf(operatorReceiver), 80);
     }
 
@@ -245,7 +245,7 @@ contract OTCP2PTest is Test {
         registry.setFactoryOtherProtocolFeeShareBps(address(factory), 1_000);
         vaultA.executeDelivery(proposalId);
 
-        assertEq(usdt.balanceOf(protocolReceiver), 10);
+        assertEq(registry.protocolPendingFees(address(usdt)), 10);
         assertEq(usdt.balanceOf(operatorReceiver), 90);
     }
 
@@ -269,7 +269,7 @@ contract OTCP2PTest is Test {
         newVault.executeDelivery(proposalId);
 
         assertEq(usdt.balanceOf(recipient), 90);
-        assertEq(usdt.balanceOf(protocolReceiver), 1);
+        assertEq(registry.protocolPendingFees(address(usdt)), 1);
         assertEq(usdt.balanceOf(operatorReceiver), 9);
         assertEq(usdt.balanceOf(address(newVault)), 0);
     }
@@ -411,7 +411,7 @@ contract OTCP2PTest is Test {
         newVault.executeDelivery(proposalId);
 
         assertEq(weth.balanceOf(address(newVault)), 90);
-        assertEq(usdt.balanceOf(protocolReceiver), 1);
+        assertEq(registry.protocolPendingFees(address(usdt)), 1);
         assertEq(usdt.balanceOf(operatorReceiver), 9);
         assertEq(usdt.allowance(address(newVault), address(target)), 0);
     }
@@ -518,7 +518,7 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(supplier), 100_000);
         assertEq(weth.balanceOf(address(vaultA)), 9_900);
-        assertEq(weth.balanceOf(protocolReceiver), 20);
+        assertEq(registry.protocolPendingFees(address(weth)), 20);
         assertEq(weth.balanceOf(operatorReceiver), 80);
     }
 
@@ -547,7 +547,7 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(supplier), 100_000);
         assertEq(weth.balanceOf(address(vaultA)), 10_000);
-        assertEq(weth.balanceOf(protocolReceiver), 20);
+        assertEq(registry.protocolPendingFees(address(weth)), 20);
         assertEq(weth.balanceOf(operatorReceiver), 80);
         assertEq(weth.balanceOf(supplier), 0);
     }
@@ -576,7 +576,7 @@ contract OTCP2PTest is Test {
         vaultA.executeSwap(proposalId);
 
         assertEq(weth.balanceOf(address(vaultA)), 4_950);
-        assertEq(weth.balanceOf(protocolReceiver), 10);
+        assertEq(registry.protocolPendingFees(address(weth)), 10);
         assertEq(weth.balanceOf(operatorReceiver), 40);
         assertEq(weth.balanceOf(externalParty), 5_000);
     }
@@ -691,7 +691,7 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(externalParty), 10_000);
         assertEq(weth.balanceOf(address(vaultA)), 4_975);
-        assertEq(weth.balanceOf(protocolReceiver), 5);
+        assertEq(registry.protocolPendingFees(address(weth)), 5);
         assertEq(weth.balanceOf(operatorReceiver), 20);
 
         uint256 lockId = _proposeLock(vaultA, address(usdt), 1 days);

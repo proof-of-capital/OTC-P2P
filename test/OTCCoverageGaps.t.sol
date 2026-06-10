@@ -84,7 +84,7 @@ contract OTCCoverageGapsTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 50});
         vm.prank(operatorOwner);
         factory =
-            OTCOperatorFactory(registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, config));
+            OTCOperatorFactory(registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, config, ""));
 
         vm.prank(operatorAdmin);
         vault = OTCClientVault(payable(factory.deployClientVault(client)));

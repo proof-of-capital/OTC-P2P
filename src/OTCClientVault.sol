@@ -12,6 +12,7 @@ import {IOTCClientVault} from "./interfaces/IOTCClientVault.sol";
 import {IOTCClientVaultErrors} from "./interfaces/IOTCClientVaultErrors.sol";
 import {IOTCClientVaultEvents} from "./interfaces/IOTCClientVaultEvents.sol";
 import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
+import {IOTCFactoryRegistry} from "./interfaces/IOTCFactoryRegistry.sol";
 
 /// @title OTCClientVault
 /// @notice Holds a client's assets and executes multi-party OTC trades through a proposal-and-approval flow.
@@ -402,7 +403,11 @@ contract OTCClientVault is
         uint256 protocolFee = operatorFee * protocolFeeShareBps / OTCConstants.MAX_FEE_BPS;
         uint256 operatorNetFee = operatorFee - protocolFee;
 
-        if (protocolFee > 0) IERC20(token).safeTransfer(snapshot.protocolFeeReceiver, protocolFee);
+        if (protocolFee > 0) {
+            address reg = f.registry();
+            IERC20(token).safeTransfer(reg, protocolFee);
+            IOTCFactoryRegistry(reg).receiveProtocolFee(token, protocolFee);
+        }
         if (operatorNetFee > 0) IERC20(token).safeTransfer(snapshot.operatorFeeReceiver, operatorNetFee);
     }
 
