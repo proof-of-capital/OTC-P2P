@@ -17,6 +17,4 @@ interface IOTCOperatorFactoryEvents {
     event DeliveryOnlyProtocolFeeShareSynced(uint16 previousShareBps, uint16 newShareBps);
     /// @notice Emitted when the non-DeliveryOnly protocol fee share is updated by the registry.
     event OtherProtocolFeeShareSynced(uint16 previousShareBps, uint16 newShareBps);
-    /// @notice Emitted when the delivery fee is permanently waived by the registry.
-    event DeliveryFeeWaived();
 }

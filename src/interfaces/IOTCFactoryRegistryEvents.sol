@@ -15,8 +15,6 @@ interface IOTCFactoryRegistryEvents {
     event DefaultDeliveryOnlyProtocolFeeShareUpdated(uint16 previousShareBps, uint16 newShareBps);
     /// @notice Emitted when the default non-DeliveryOnly protocol fee share changes.
     event DefaultOtherProtocolFeeShareUpdated(uint16 previousShareBps, uint16 newShareBps);
-    /// @notice Emitted when the delivery protocol fee is permanently waived for an operator factory.
-    event OperatorDeliveryFeeWaived(address indexed operatorFactory);
     /// @notice Emitted when registry decreases a factory's DeliveryOnly protocol fee share.
     event FactoryDeliveryOnlyProtocolFeeShareDecreased(
         address indexed operatorFactory, uint16 previousShareBps, uint16 newShareBps

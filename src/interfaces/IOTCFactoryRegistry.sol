@@ -18,9 +18,6 @@ interface IOTCFactoryRegistry {
     function isOperatorFactory(address operatorFactory) external view returns (bool);
     /// @notice Whether `vault` is a client vault registered under this registry.
     function isVault(address vault) external view returns (bool);
-    /// @notice Whether the protocol share of the delivery fee is waived for `operatorFactory`.
-    /// @dev Reads directly from the factory's own storage.
-    function isDeliveryFeeWaived(address operatorFactory) external view returns (bool);
     /// @notice Operator factory deployed at index `index`.
     function operatorFactories(uint256 index) external view returns (address);
 
@@ -53,11 +50,6 @@ interface IOTCFactoryRegistry {
     /// @notice Updates the default non-DeliveryOnly protocol fee share used for new factory deployments.
     /// @param newShareBps New share in basis points.
     function setDefaultOtherProtocolFeeShareBps(uint16 newShareBps) external;
-
-    /// @notice Permanently waives the protocol share of delivery fees for an operator factory.
-    /// @dev Irreversible — once waived, cannot be undone. Taker/openP2P fees are unaffected.
-    /// @param operatorFactory Target operator factory.
-    function setOperatorDeliveryFeeWaived(address operatorFactory) external;
 
     /// @notice Decreases the DeliveryOnly protocol fee share for a specific operator factory.
     /// @param operatorFactory Target operator factory.

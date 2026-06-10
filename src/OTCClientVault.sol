@@ -227,7 +227,7 @@ contract OTCClientVault is
             _executeDirectDelivery(p, netAmount);
         }
 
-        _chargeFee(p.token, feeAmount, p.feeSnapshot, true);
+        _chargeFee(p.token, feeAmount, p.feeSnapshot);
         _chargeExtraFee(p.extraFee, p.adminApproved);
         emit DeliveryExecuted(proposalId, p.token, p.target, p.expectedReceivedToken, p.minExpectedReceivedAmount);
     }
@@ -312,7 +312,7 @@ contract OTCClientVault is
         IERC20(p.tokenIn).safeTransferFrom(p.counterparty, address(this), grossAmount);
         IERC20(p.tokenOut).safeTransfer(p.counterparty, p.amountOut);
 
-        _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot, false);
+        _chargeFee(p.tokenIn, feeAmount, p.feeSnapshot);
 
         _chargeExtraFee(p.extraFee, p.adminApproved);
         emit SwapExecuted(proposalId);
@@ -384,18 +384,15 @@ contract OTCClientVault is
         }
     }
 
-    function _chargeFee(address token, uint256 operatorFee, OTCTypes.FeeSnapshot memory snapshot, bool isDelivery)
+    function _chargeFee(address token, uint256 operatorFee, OTCTypes.FeeSnapshot memory snapshot)
         internal
     {
         if (operatorFee == 0) return;
 
         IOTCOperatorFactory f = IOTCOperatorFactory(factory);
-        uint16 protocolFeeShareBps;
-        if (!(isDelivery && f.isDeliveryFeeWaived())) {
-            protocolFeeShareBps = swapAccessLevel == OTCTypes.SwapAccessLevel.DeliveryOnly
-                ? f.deliveryOnlyProtocolFeeShareBps()
-                : f.otherProtocolFeeShareBps();
-        }
+        uint16 protocolFeeShareBps = swapAccessLevel == OTCTypes.SwapAccessLevel.DeliveryOnly
+            ? f.deliveryOnlyProtocolFeeShareBps()
+            : f.otherProtocolFeeShareBps();
 
         uint256 protocolFee = operatorFee * protocolFeeShareBps / OTCConstants.MAX_FEE_BPS;
         uint256 operatorNetFee = operatorFee - protocolFee;

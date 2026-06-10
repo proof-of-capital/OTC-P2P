@@ -121,18 +121,6 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
     }
 
     /// @inheritdoc IOTCFactoryRegistry
-    function isDeliveryFeeWaived(address operatorFactory) external view override returns (bool) {
-        return IOTCOperatorFactory(operatorFactory).isDeliveryFeeWaived();
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function setOperatorDeliveryFeeWaived(address operatorFactory) external override onlyOwner {
-        require(isOperatorFactory[operatorFactory], NotOperatorFactory());
-        IOTCOperatorFactory(operatorFactory).setDeliveryFeeWaived();
-        emit OperatorDeliveryFeeWaived(operatorFactory);
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
     function setFactoryDeliveryOnlyProtocolFeeShareBps(address operatorFactory, uint16 newShareBps)
         external
         override

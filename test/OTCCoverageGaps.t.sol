@@ -925,24 +925,6 @@ contract OTCCoverageGapsTest is Test {
         assertEq(usdt.balanceOf(operatorReceiver), 0);
     }
 
-    function testChargeFee_DeliveryProtocolFeeWaived() public {
-        // When delivery fee is waived, protocol receives 0 share of the delivery fee.
-        // Taker/openP2P fees are unaffected by the waiver.
-        // Delivery: 500 USDT, 100 bps fee (Gross) → fee = 5
-        // With waiver: protocolFee = 0, operatorFee = 5
-        _deposit(address(usdt), 1_000);
-        uint256 id = _proposeDirectDelivery(address(usdt), 500, recipient, emptyExtraFee);
-        vm.prank(client);
-        vault.acceptDeliveryProposal(id);
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-        vault.executeDelivery(id);
-
-        assertEq(usdt.balanceOf(recipient), 500);
-        assertEq(usdt.balanceOf(protocolReceiver), 0); // waived
-        assertEq(usdt.balanceOf(operatorReceiver), 5); // full fee to operator
-    }
-
     function testExtraFee_RevertsNonZeroAmountZeroToken() public {
         OTCTypes.ExtraFee memory badFee = OTCTypes.ExtraFee({token: address(0), amount: 100, receiver: extraReceiver});
         vm.prank(operatorAdmin);

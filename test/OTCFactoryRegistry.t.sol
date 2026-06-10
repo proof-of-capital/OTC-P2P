@@ -349,33 +349,6 @@ contract OTCFactoryRegistryTest is Test {
         registry.setDefaultOtherProtocolFeeShareBps(3_000);
     }
 
-    // ── setOperatorDeliveryFeeWaived ─────────────────────────────────────────────
-
-    function testSetOperatorDeliveryFeeWaived_Sets() public {
-        assertFalse(registry.isDeliveryFeeWaived(address(factory)));
-
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-        assertTrue(registry.isDeliveryFeeWaived(address(factory)));
-
-        // Calling again is a no-op — waiver is irreversible
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-        assertTrue(registry.isDeliveryFeeWaived(address(factory)));
-    }
-
-    function testSetOperatorDeliveryFeeWaived_RevertsNonOwner() public {
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        vm.prank(stranger);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-    }
-
-    function testSetOperatorDeliveryFeeWaived_RevertsNotFactory() public {
-        vm.prank(protocolOwner);
-        vm.expectRevert(IOTCFactoryRegistryErrors.NotOperatorFactory.selector);
-        registry.setOperatorDeliveryFeeWaived(address(0x1234));
-    }
-
     // ── setFactoryDeliveryOnlyProtocolFeeShareBps ────────────────────────────────────────────
 
     function testSetFactoryProtocolFeeShareBps_Decreases() public {
@@ -473,10 +446,6 @@ contract OTCFactoryRegistryTest is Test {
         assertEq(r2.getDeliveryOnlyProtocolFeeShareBps(address(f2)), 1_000);
         assertEq(r2.getOtherProtocolFeeShareBps(address(f2)), 3_000);
 
-        // Waived status does NOT affect getDeliveryOnlyProtocolFeeShareBps (only delivery snapshot in vault)
-        vm.prank(protocolOwner);
-        r2.setOperatorDeliveryFeeWaived(address(f2));
-        assertEq(r2.getDeliveryOnlyProtocolFeeShareBps(address(f2)), 1_000);
     }
 
     // ── setClientVaultImplementation ─────────────────────────────────────────────

@@ -33,9 +33,6 @@ interface IOTCOperatorFactory {
     /// @notice Protocol fee receiver — read dynamically from the registry.
     function protocolFeeReceiver() external view returns (address);
 
-    /// @notice Whether the protocol share of the delivery fee is waived for this factory — read from registry.
-    function isDeliveryFeeWaived() external view returns (bool);
-
     /// @notice Default lock duration in seconds for `token`.
     function defaultLockDuration(address token) external view returns (uint256);
 
@@ -78,10 +75,6 @@ interface IOTCOperatorFactory {
     /// @notice Sets the non-DeliveryOnly protocol fee share. Only callable by the registry.
     /// @param newShareBps New protocol fee share in basis points.
     function setOtherProtocolFeeShareBps(uint16 newShareBps) external;
-
-    /// @notice Permanently waives the protocol share of delivery fees. Only callable by the registry.
-    /// @dev Irreversible — once waived, cannot be undone.
-    function setDeliveryFeeWaived() external;
 
     /// @notice Returns the total number of client vaults deployed by this factory.
     function getVaultsCount() external view returns (uint256);

@@ -29,9 +29,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     uint16 public override deliveryOnlyProtocolFeeShareBps;
     /// @notice Protocol fee share used while a vault is in any non-DeliveryOnly mode.
     uint16 public override otherProtocolFeeShareBps;
-    /// @notice Whether the protocol share of the delivery fee is waived. Set by the registry.
-    bool public deliveryFeeWaived;
-
     /// @notice Default lock duration in seconds for each token address.
     mapping(address token => uint256 duration) public defaultLockDuration;
     /// @notice Ordered list of tokens that currently have a non-zero default lock configured.
@@ -145,11 +142,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     }
 
     /// @inheritdoc IOTCOperatorFactory
-    function isDeliveryFeeWaived() external view override returns (bool) {
-        return deliveryFeeWaived;
-    }
-
-    /// @inheritdoc IOTCOperatorFactory
     function setDeliveryOnlyProtocolFeeShareBps(uint16 newShareBps) external override onlyRegistry {
         uint16 prev = deliveryOnlyProtocolFeeShareBps;
         deliveryOnlyProtocolFeeShareBps = newShareBps;
@@ -161,12 +153,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         uint16 prev = otherProtocolFeeShareBps;
         otherProtocolFeeShareBps = newShareBps;
         emit OtherProtocolFeeShareSynced(prev, newShareBps);
-    }
-
-    /// @inheritdoc IOTCOperatorFactory
-    function setDeliveryFeeWaived() external override onlyRegistry {
-        deliveryFeeWaived = true;
-        emit DeliveryFeeWaived();
     }
 
     /// @inheritdoc IOTCOperatorFactory

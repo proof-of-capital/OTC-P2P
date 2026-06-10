@@ -97,14 +97,6 @@ contract OTCP2PTest is Test {
             abi.encodeWithSelector(IOTCFactoryRegistryErrors.ProtocolFeeCannotIncrease.selector, 1_000, 1_000)
         );
         registry.setFactoryDeliveryOnlyProtocolFeeShareBps(address(factory), 1_000);
-
-        // Delivery fee waivers don't change the configured DeliveryOnly share.
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-        assertEq(registry.getDeliveryOnlyProtocolFeeShareBps(address(factory)), 1_000);
-        assertTrue(factory.isDeliveryFeeWaived());
-        // Waiver is irreversible
-        assertTrue(registry.isDeliveryFeeWaived(address(factory)));
     }
 
     /// @notice Only the factory owner may change admin and fee receiver; changes take effect immediately.
@@ -683,8 +675,6 @@ contract OTCP2PTest is Test {
 
         vm.prank(clientA);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
 
         uint256 proposalId = _createSwap(
             vaultA,

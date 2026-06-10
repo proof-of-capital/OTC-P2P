@@ -632,19 +632,6 @@ contract OTCOperatorFactoryTest is Test {
         factory.setOtherProtocolFeeShareBps(500);
     }
 
-    function testIsDeliveryFeeWaived_IrreversibleOnceSet() public {
-        assertFalse(factory.isDeliveryFeeWaived());
-
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-        assertTrue(factory.isDeliveryFeeWaived());
-
-        // Calling again is a no-op — cannot un-waive
-        vm.prank(protocolOwner);
-        registry.setOperatorDeliveryFeeWaived(address(factory));
-        assertTrue(factory.isDeliveryFeeWaived());
-    }
-
     // ── getCurrentFeeSnapshot ────────────────────────────────────────────────────
 
     function testGetCurrentFeeSnapshot_Values() public view {
