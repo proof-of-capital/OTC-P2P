@@ -729,6 +729,66 @@ contract OTCP2PTest is Test {
         vaultA.cancelSwapProposal(cancelId);
     }
 
+    /// @notice Cancellation permissions use the swap level captured in the proposal, even if vault level changes later.
+    function testCancelSwapUsesProposalLevelSnapshotWhenVaultLevelChanges() public {
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        uint256 openId = _createSwap(
+            vaultA, clientA, OTCTypes.SwapAccessLevel.OpenP2P, externalParty, address(usdt), 1_000, address(weth), 1_000
+        );
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vaultA.cancelSwapProposal(openId);
+
+        vm.prank(externalParty);
+        vaultA.cancelSwapProposal(openId);
+        assertTrue(vaultA.swapProposals(openId).cancelled);
+
+        uint256 managedId = _createSwap(
+            vaultA,
+            clientA,
+            OTCTypes.SwapAccessLevel.ManagedP2P,
+            externalParty,
+            address(usdt),
+            1_000,
+            address(weth),
+            1_000
+        );
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        vm.prank(operatorAdmin);
+        vaultA.cancelSwapProposal(managedId);
+        assertTrue(vaultA.swapProposals(managedId).cancelled);
+    }
+
+    /// @notice Delivery cancellation also uses the proposal-level snapshot, not the current vault swap level.
+    function testCancelDeliveryUsesProposalLevelSnapshotWhenVaultLevelChanges() public {
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        uint256 openId = _proposeDirectDelivery(vaultA, address(usdt), 100, recipient, emptyExtraFee);
+        assertEq(uint8(vaultA.deliveryProposals(openId).level), uint8(OTCTypes.SwapAccessLevel.OpenP2P));
+
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.DeliveryOnly);
+        vm.prank(operatorAdmin);
+        vm.expectRevert(IOTCClientVaultErrors.NotAuthorized.selector);
+        vaultA.cancelDeliveryProposal(openId);
+
+        uint256 deliveryOnlyId = _proposeDirectDelivery(vaultA, address(usdt), 100, recipient, emptyExtraFee);
+        assertEq(uint8(vaultA.deliveryProposals(deliveryOnlyId).level), uint8(OTCTypes.SwapAccessLevel.DeliveryOnly));
+
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        vm.prank(operatorAdmin);
+        vaultA.cancelDeliveryProposal(deliveryOnlyId);
+        assertTrue(vaultA.deliveryProposals(deliveryOnlyId).cancelled);
+    }
+
     /// @notice Access levels are cumulative and reject proposals above the configured maximum.
     function testSwapAccessLevelValidation() public {
         vm.startPrank(clientA);

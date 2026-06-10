@@ -237,7 +237,7 @@ contract OTCClientVault is
         OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         require(p.deadline != 0, InvalidProposal());
         _requireNotExecutedOrCancelled(p.executed, p.cancelled);
-        if (swapAccessLevel == OTCTypes.SwapAccessLevel.OpenP2P && _isUnlocked(p.token)) {
+        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P && _isUnlocked(p.token)) {
             require(msg.sender == owner(), NotAuthorized());
         } else {
             require(_isClientAdminOrOwner(msg.sender), NotAuthorized());
@@ -322,7 +322,7 @@ contract OTCClientVault is
     function cancelSwapProposal(uint256 proposalId) external override {
         OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         require(p.deadline != 0, InvalidProposal());
-        if (swapAccessLevel == OTCTypes.SwapAccessLevel.OpenP2P && _isUnlocked(p.tokenOut)) {
+        if (p.level == OTCTypes.SwapAccessLevel.OpenP2P && _isUnlocked(p.tokenOut)) {
             require(msg.sender == owner() || msg.sender == p.counterparty, NotAuthorized());
         } else {
             require(_isClientAdminOrOwner(msg.sender) || msg.sender == p.counterparty, NotAuthorized());
@@ -626,6 +626,7 @@ contract OTCClientVault is
         p = _deliveryProposals[proposalId];
         p.useAllowanceCall = params.useAllowanceCall;
         p.feeMode = params.feeMode;
+        p.level = swapAccessLevel;
         p.token = params.token;
         p.amount = params.amount;
         p.deliveryAddress = params.deliveryAddress;

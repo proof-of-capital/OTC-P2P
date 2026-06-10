@@ -107,7 +107,7 @@ interface IOTCClientVault {
     function executeDelivery(uint256 proposalId) external;
 
     /// @notice Cancels a delivery proposal.
-    /// @dev In OpenP2P mode with an unlocked delivery token, only the client may cancel.
+    /// @dev If the proposal was created while OpenP2P was enabled and the delivery token is unlocked, only the client may cancel.
     /// @dev In all other cases, the client, factory admin, or factory owner may cancel.
     /// @param proposalId Proposal to cancel.
     function cancelDeliveryProposal(uint256 proposalId) external;
@@ -129,7 +129,7 @@ interface IOTCClientVault {
     function executeSwap(uint256 proposalId) external;
 
     /// @notice Cancels a unified swap proposal.
-    /// @dev In OpenP2P mode with an unlocked `tokenOut`, only the client or the proposal counterparty may cancel.
+    /// @dev If the proposal level is OpenP2P and `tokenOut` is unlocked, only the client or the proposal counterparty may cancel.
     /// @dev In all other cases, the client, factory admin, factory owner, or counterparty may cancel.
     function cancelSwapProposal(uint256 proposalId) external;
 }

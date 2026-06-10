@@ -84,6 +84,8 @@ library OTCTypes {
         bool useAllowanceCall;
         /// @notice Whether bps fees are charged on top of or deducted from `amount`.
         FeeMode feeMode;
+        /// @notice Swap access level snapshot captured when the proposal is created.
+        SwapAccessLevel level;
         /// @notice Token being delivered from the vault.
         address token;
         /// @notice Delivery amount; net in Gross mode, total budget in Inclusive mode.
