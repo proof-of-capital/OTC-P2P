@@ -225,7 +225,7 @@ contract OTCP2PTest is Test {
 
         vm.prank(clientA);
         vaultA.acceptDeliveryProposal(proposalId);
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
         vaultA.executeDelivery(proposalId);
 
@@ -239,7 +239,7 @@ contract OTCP2PTest is Test {
 
         vm.prank(clientA);
         vaultA.acceptDeliveryProposal(proposalId);
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
         vm.prank(protocolOwner);
         registry.setFactoryOtherProtocolFeeShareBps(address(factory), 1_000);
@@ -673,7 +673,7 @@ contract OTCP2PTest is Test {
         vm.prank(externalParty);
         weth.approve(address(vaultA), 10_000);
 
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
 
         uint256 proposalId = _createSwap(
@@ -725,7 +725,7 @@ contract OTCP2PTest is Test {
         vm.prank(externalParty);
         weth.approve(address(vaultA), 5_000);
 
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
 
         uint256 proposalId = _createSwap(
@@ -754,7 +754,7 @@ contract OTCP2PTest is Test {
 
     /// @notice Cancellation permissions use the swap level captured in the proposal, even if vault level changes later.
     function testCancelSwapUsesProposalLevelSnapshotWhenVaultLevelChanges() public {
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
 
         uint256 openId = _createSwap(
@@ -791,7 +791,7 @@ contract OTCP2PTest is Test {
 
     /// @notice Delivery cancellation also uses the proposal-level snapshot, not the current vault swap level.
     function testCancelDeliveryUsesProposalLevelSnapshotWhenVaultLevelChanges() public {
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
         uint256 openId = _proposeDirectDelivery(vaultA, address(usdt), 100, recipient, emptyExtraFee);
         assertEq(uint8(vaultA.deliveryProposals(openId).level), uint8(OTCTypes.SwapAccessLevel.OpenP2P));
@@ -805,7 +805,7 @@ contract OTCP2PTest is Test {
         uint256 deliveryOnlyId = _proposeDirectDelivery(vaultA, address(usdt), 100, recipient, emptyExtraFee);
         assertEq(uint8(vaultA.deliveryProposals(deliveryOnlyId).level), uint8(OTCTypes.SwapAccessLevel.DeliveryOnly));
 
-        vm.prank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
         vm.prank(operatorAdmin);
         vaultA.cancelDeliveryProposal(deliveryOnlyId);
@@ -814,8 +814,10 @@ contract OTCP2PTest is Test {
 
     /// @notice Access levels are cumulative and reject proposals above the configured maximum.
     function testSwapAccessLevelValidation() public {
-        vm.startPrank(clientA);
+        vm.prank(operatorAdmin);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.SupplierOnly);
+
+        vm.prank(clientA);
         vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
         vaultA.createSwapProposal(
             OTCTypes.SwapProposalParams({
@@ -831,7 +833,9 @@ contract OTCP2PTest is Test {
             emptyExtraFee
         );
 
+        vm.prank(clientA);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        vm.prank(clientA);
         vaultA.createSwapProposal(
             OTCTypes.SwapProposalParams({
                 level: OTCTypes.SwapAccessLevel.OpenP2P,
@@ -845,7 +849,6 @@ contract OTCP2PTest is Test {
             }),
             emptyExtraFee
         );
-        vm.stopPrank();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -945,7 +948,11 @@ contract OTCP2PTest is Test {
 
     function _enableSwapLevel(OTCClientVault vault, OTCTypes.SwapAccessLevel level) internal {
         address client = address(vault) == address(vaultA) ? clientA : clientB;
-        vm.prank(client);
+        if (vault.swapAccessLevel() == OTCTypes.SwapAccessLevel.DeliveryOnly) {
+            vm.prank(operatorAdmin);
+        } else {
+            vm.prank(client);
+        }
         vault.setSwapAccessLevel(level);
     }
 

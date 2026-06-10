@@ -249,7 +249,12 @@ contract OTCClientVault is
     // ── Swap proposals ──────────────────────────────────────────────────────────
 
     /// @inheritdoc IOTCClientVault
-    function setSwapAccessLevel(OTCTypes.SwapAccessLevel newLevel) external override onlyOwner {
+    function setSwapAccessLevel(OTCTypes.SwapAccessLevel newLevel) external override {
+        if (swapAccessLevel == OTCTypes.SwapAccessLevel.DeliveryOnly) {
+            require(_isFactoryAdminOrOwner(msg.sender), NotFactoryAdmin());
+        } else {
+            require(msg.sender == owner(), OwnableUnauthorizedAccount(msg.sender));
+        }
         OTCTypes.SwapAccessLevel oldLevel = swapAccessLevel;
         swapAccessLevel = newLevel;
         emit SwapAccessLevelUpdated(oldLevel, newLevel);

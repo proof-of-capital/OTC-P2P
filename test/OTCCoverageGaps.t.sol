@@ -128,7 +128,11 @@ contract OTCCoverageGapsTest is Test {
     }
 
     function _enableSwapLevel(OTCTypes.SwapAccessLevel level) internal {
-        vm.prank(client);
+        if (vault.swapAccessLevel() == OTCTypes.SwapAccessLevel.DeliveryOnly) {
+            vm.prank(operatorAdmin);
+        } else {
+            vm.prank(client);
+        }
         vault.setSwapAccessLevel(level);
     }
 
@@ -1009,9 +1013,6 @@ contract OTCCoverageGapsTest is Test {
     }
 
     function testCreateSwap_RevertsWhenVaultIsDeliveryOnly() public {
-        vm.prank(client);
-        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.DeliveryOnly);
-
         vm.prank(operatorAdmin);
         vm.expectRevert(IOTCClientVaultErrors.SwapLevelNotAllowed.selector);
         vault.createSwapProposal(
@@ -1091,7 +1092,7 @@ contract OTCCoverageGapsTest is Test {
     }
 
     function testCreateSwap_RevertsOpenP2PWithLockedToken() public {
-        vm.prank(client);
+        vm.prank(operatorAdmin);
         vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
 
         uint256 lockId = _proposeLock(address(usdt), 1 days);
@@ -1118,7 +1119,7 @@ contract OTCCoverageGapsTest is Test {
 
     function testExecuteSwap_OpenP2P_RevertsLockedToken() public {
         _deposit(address(usdt), 1_000);
-        vm.prank(client);
+        vm.prank(operatorAdmin);
         vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
 
         uint256 swapId =
@@ -1233,7 +1234,7 @@ contract OTCCoverageGapsTest is Test {
         vm.prank(counterparty);
         weth.approve(address(vault), 100);
 
-        vm.prank(client);
+        vm.prank(operatorAdmin);
         vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
 
         uint256 swapId =
@@ -1588,5 +1589,37 @@ contract OTCCoverageGapsTest is Test {
         assertEq(usdt.balanceOf(recipient), 500);
         assertEq(usdt.balanceOf(operatorReceiver), 5);
         assertTrue(usdt.balanceOf(operatorReceiver) < 25, "should use old 100bps, not new 500bps");
+    }
+
+    // ── Group: setSwapAccessLevel access control ──────────────────────────────────
+
+    function testSetSwapAccessLevel_FromDeliveryOnly_RevertsForOwner() public {
+        vm.prank(client);
+        vm.expectRevert(IOTCClientVaultErrors.NotFactoryAdmin.selector);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+    }
+
+    function testSetSwapAccessLevel_FromDeliveryOnly_SucceedsForAdmin() public {
+        vm.prank(operatorAdmin);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        assertEq(uint8(vault.swapAccessLevel()), uint8(OTCTypes.SwapAccessLevel.OpenP2P));
+    }
+
+    function testSetSwapAccessLevel_FromNonDeliveryOnly_SucceedsForOwner() public {
+        vm.prank(operatorAdmin);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        vm.prank(client);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
+        assertEq(uint8(vault.swapAccessLevel()), uint8(OTCTypes.SwapAccessLevel.ManagedP2P));
+    }
+
+    function testSetSwapAccessLevel_FromNonDeliveryOnly_RevertsForAdmin() public {
+        vm.prank(operatorAdmin);
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert();
+        vault.setSwapAccessLevel(OTCTypes.SwapAccessLevel.ManagedP2P);
     }
 }
