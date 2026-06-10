@@ -10,9 +10,10 @@ interface IOTCFactoryRegistry {
 
     /// @notice Address that receives the protocol portion of operator fees.
     function protocolFeeReceiver() external view returns (address);
-    /// @notice Default protocol fee share (bps) assigned to new factories at deployment time.
-    /// @dev Existing factories are not affected by changes to this value.
-    function defaultProtocolFeeShareBps() external view returns (uint16);
+    /// @notice Default DeliveryOnly protocol fee share assigned to new factories.
+    function defaultDeliveryOnlyProtocolFeeShareBps() external view returns (uint16);
+    /// @notice Default non-DeliveryOnly protocol fee share assigned to new factories.
+    function defaultOtherProtocolFeeShareBps() external view returns (uint16);
     /// @notice Whether `operatorFactory` is a factory deployed by this registry.
     function isOperatorFactory(address operatorFactory) external view returns (bool);
     /// @notice Whether `vault` is a client vault registered under this registry.
@@ -45,26 +46,34 @@ interface IOTCFactoryRegistry {
     /// @param newReceiver New protocol fee receiver; must be non-zero.
     function setProtocolFeeReceiver(address newReceiver) external;
 
-    /// @notice Updates the default protocol fee share used for new factory deployments.
-    /// @dev Does not affect existing factories. Must be ≥ MIN_PROTOCOL_FEE_SHARE_BPS (10 %).
+    /// @notice Updates the default DeliveryOnly protocol fee share used for new factory deployments.
     /// @param newShareBps New share in basis points.
-    function setDefaultProtocolFeeShareBps(uint16 newShareBps) external;
+    function setDefaultDeliveryOnlyProtocolFeeShareBps(uint16 newShareBps) external;
+
+    /// @notice Updates the default non-DeliveryOnly protocol fee share used for new factory deployments.
+    /// @param newShareBps New share in basis points.
+    function setDefaultOtherProtocolFeeShareBps(uint16 newShareBps) external;
 
     /// @notice Permanently waives the protocol share of delivery fees for an operator factory.
     /// @dev Irreversible — once waived, cannot be undone. Taker/openP2P fees are unaffected.
     /// @param operatorFactory Target operator factory.
     function setOperatorDeliveryFeeWaived(address operatorFactory) external;
 
-    /// @notice Decreases the protocol fee share for a specific operator factory.
-    /// @dev Cannot increase — only decreases down to MIN_PROTOCOL_FEE_SHARE_BPS (10 %) are allowed.
+    /// @notice Decreases the DeliveryOnly protocol fee share for a specific operator factory.
     /// @param operatorFactory Target operator factory.
-    /// @param newShareBps New share in basis points; must be < current value and ≥ 1 000.
-    function setFactoryProtocolFeeShareBps(address operatorFactory, uint16 newShareBps) external;
+    /// @param newShareBps New share in basis points.
+    function setFactoryDeliveryOnlyProtocolFeeShareBps(address operatorFactory, uint16 newShareBps) external;
 
-    /// @notice Returns the effective protocol fee share for `operatorFactory`.
+    /// @notice Decreases the non-DeliveryOnly protocol fee share for a specific operator factory.
     /// @param operatorFactory Target operator factory.
-    /// @return Effective protocol fee share in basis points.
-    function getProtocolFeeShareBps(address operatorFactory) external view returns (uint16);
+    /// @param newShareBps New share in basis points.
+    function setFactoryOtherProtocolFeeShareBps(address operatorFactory, uint16 newShareBps) external;
+
+    /// @notice Returns the DeliveryOnly protocol fee share for `operatorFactory`.
+    function getDeliveryOnlyProtocolFeeShareBps(address operatorFactory) external view returns (uint16);
+
+    /// @notice Returns the non-DeliveryOnly protocol fee share for `operatorFactory`.
+    function getOtherProtocolFeeShareBps(address operatorFactory) external view returns (uint16);
 
     /// @notice Updates the vault implementation address used for all future clone deployments.
     /// @param newImpl New implementation address; must be non-zero.

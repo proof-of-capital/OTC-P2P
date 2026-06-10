@@ -24,9 +24,11 @@ interface IOTCOperatorFactory {
     /// @return openP2PFeeBps Open P2P fee rate in basis points.
     function defaultFeeConfig() external view returns (uint16 takerFeeBps, uint16 deliveryFeeBps, uint16 openP2PFeeBps);
 
-    /// @notice Protocol fee share (in bps) cached locally from the registry.
-    /// @dev Set at factory deployment from registry default; can only decrease via syncProtocolFeeShare().
-    function protocolFeeShareBps() external view returns (uint16);
+    /// @notice Protocol fee share used while a vault is in DeliveryOnly mode.
+    function deliveryOnlyProtocolFeeShareBps() external view returns (uint16);
+
+    /// @notice Protocol fee share used while a vault is in any non-DeliveryOnly mode.
+    function otherProtocolFeeShareBps() external view returns (uint16);
 
     /// @notice Protocol fee receiver — read dynamically from the registry.
     function protocolFeeReceiver() external view returns (address);
@@ -66,13 +68,16 @@ interface IOTCOperatorFactory {
     function setDefaultLockDurationsBatch(address[] calldata tokens, uint256[] calldata durations) external;
 
     /// @notice Returns a complete fee snapshot for use by client vaults at proposal creation time.
-    /// @return snapshot Current fee rates, receivers, and protocol share.
+    /// @return snapshot Current fee rates and receivers.
     function getCurrentFeeSnapshot() external view returns (OTCTypes.FeeSnapshot memory snapshot);
 
-    /// @notice Sets the protocol fee share. Only callable by the registry.
-    /// @dev Registry enforces the decrease-only constraint and minimum floor.
+    /// @notice Sets the DeliveryOnly protocol fee share. Only callable by the registry.
     /// @param newShareBps New protocol fee share in basis points.
-    function setProtocolFeeShareBps(uint16 newShareBps) external;
+    function setDeliveryOnlyProtocolFeeShareBps(uint16 newShareBps) external;
+
+    /// @notice Sets the non-DeliveryOnly protocol fee share. Only callable by the registry.
+    /// @param newShareBps New protocol fee share in basis points.
+    function setOtherProtocolFeeShareBps(uint16 newShareBps) external;
 
     /// @notice Permanently waives the protocol share of delivery fees. Only callable by the registry.
     /// @dev Irreversible — once waived, cannot be undone.

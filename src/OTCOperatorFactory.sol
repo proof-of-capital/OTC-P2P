@@ -25,8 +25,10 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     /// @notice Default fee configuration applied to all new client vaults.
     OTCTypes.OperatorFeeConfig public defaultFeeConfig;
 
-    /// @notice Protocol fee share (bps) set by the registry. Can only decrease (min 10 %).
-    uint16 public override protocolFeeShareBps;
+    /// @notice Protocol fee share used while a vault is in DeliveryOnly mode.
+    uint16 public override deliveryOnlyProtocolFeeShareBps;
+    /// @notice Protocol fee share used while a vault is in any non-DeliveryOnly mode.
+    uint16 public override otherProtocolFeeShareBps;
     /// @notice Whether the protocol share of the delivery fee is waived. Set by the registry.
     bool public deliveryFeeWaived;
 
@@ -53,7 +55,8 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         address admin_,
         address operatorFeeReceiver_,
         OTCTypes.OperatorFeeConfig memory defaultFeeConfig_,
-        uint16 initialProtocolFeeShareBps_
+        uint16 initialDeliveryOnlyProtocolFeeShareBps_,
+        uint16 initialOtherProtocolFeeShareBps_
     ) Ownable(owner_) {
         require(msg.sender == registry_, NotRegistry());
         require(admin_ != address(0), InvalidAddress());
@@ -65,7 +68,8 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
         operatorFeeReceiver = operatorFeeReceiver_;
         defaultFeeConfig = defaultFeeConfig_;
         // Passed by the registry at deployment time so the value is consistent with registry storage.
-        protocolFeeShareBps = initialProtocolFeeShareBps_;
+        deliveryOnlyProtocolFeeShareBps = initialDeliveryOnlyProtocolFeeShareBps_;
+        otherProtocolFeeShareBps = initialOtherProtocolFeeShareBps_;
     }
 
     /// @inheritdoc IOTCOperatorFactory
@@ -146,10 +150,17 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
     }
 
     /// @inheritdoc IOTCOperatorFactory
-    function setProtocolFeeShareBps(uint16 newShareBps) external override onlyRegistry {
-        uint16 prev = protocolFeeShareBps;
-        protocolFeeShareBps = newShareBps;
-        emit ProtocolFeeShareSynced(prev, newShareBps);
+    function setDeliveryOnlyProtocolFeeShareBps(uint16 newShareBps) external override onlyRegistry {
+        uint16 prev = deliveryOnlyProtocolFeeShareBps;
+        deliveryOnlyProtocolFeeShareBps = newShareBps;
+        emit DeliveryOnlyProtocolFeeShareSynced(prev, newShareBps);
+    }
+
+    /// @inheritdoc IOTCOperatorFactory
+    function setOtherProtocolFeeShareBps(uint16 newShareBps) external override onlyRegistry {
+        uint16 prev = otherProtocolFeeShareBps;
+        otherProtocolFeeShareBps = newShareBps;
+        emit OtherProtocolFeeShareSynced(prev, newShareBps);
     }
 
     /// @inheritdoc IOTCOperatorFactory
@@ -165,7 +176,6 @@ contract OTCOperatorFactory is Ownable, IOTCOperatorFactory, IOTCOperatorFactory
             takerFeeBps: config.takerFeeBps,
             deliveryFeeBps: config.deliveryFeeBps,
             openP2PFeeBps: config.openP2PFeeBps,
-            protocolFeeShareBps: protocolFeeShareBps,
             operatorFeeReceiver: operatorFeeReceiver,
             protocolFeeReceiver: IOTCFactoryRegistry(registry).protocolFeeReceiver()
         });

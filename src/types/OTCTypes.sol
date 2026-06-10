@@ -44,8 +44,6 @@ library OTCTypes {
         uint16 deliveryFeeBps;
         /// @notice Open P2P fee rate at snapshot time.
         uint16 openP2PFeeBps;
-        /// @notice Protocol's share of the operator fee at snapshot time.
-        uint16 protocolFeeShareBps;
         /// @notice Address that receives the operator's net fee portion.
         address operatorFeeReceiver;
         /// @notice Address that receives the protocol fee portion.

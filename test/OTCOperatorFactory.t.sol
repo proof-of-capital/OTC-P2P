@@ -30,7 +30,7 @@ contract OTCOperatorFactoryTest is Test {
         OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 50});
 
     function setUp() public {
-        registry = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 1_000);
+        registry = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 1_000, 2_000);
         vm.prank(operatorOwner);
         factory = OTCOperatorFactory(
             registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig)
@@ -53,30 +53,36 @@ contract OTCOperatorFactoryTest is Test {
 
     function testConstructor_RevertsZeroRegistry() public {
         vm.expectRevert(IOTCOperatorFactoryErrors.NotRegistry.selector);
-        new OTCOperatorFactory(address(0), operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, 1_000);
+        new OTCOperatorFactory(address(0), operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, 1_000, 2_000);
     }
 
     function testConstructor_RevertsIfNotDeployedByRegistry() public {
         vm.expectRevert(IOTCOperatorFactoryErrors.NotRegistry.selector);
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, 1_000);
+        new OTCOperatorFactory(
+            address(registry), operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, 1_000, 2_000
+        );
     }
 
     function testConstructor_RevertsZeroOwner() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), address(0), operatorAdmin, operatorReceiver, defaultConfig, 1_000);
+        new OTCOperatorFactory(
+            address(registry), address(0), operatorAdmin, operatorReceiver, defaultConfig, 1_000, 2_000
+        );
     }
 
     function testConstructor_RevertsZeroAdmin() public {
         vm.expectRevert(IOTCOperatorFactoryErrors.InvalidAddress.selector);
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, address(0), operatorReceiver, defaultConfig, 1_000);
+        new OTCOperatorFactory(
+            address(registry), operatorOwner, address(0), operatorReceiver, defaultConfig, 1_000, 2_000
+        );
     }
 
     function testConstructor_RevertsZeroFeeReceiver() public {
         vm.expectRevert(IOTCOperatorFactoryErrors.InvalidAddress.selector);
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, address(0), defaultConfig, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, address(0), defaultConfig, 1_000, 2_000);
     }
 
     function testConstructor_RevertsInvalidTakerFee() public {
@@ -84,7 +90,7 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 10_001, deliveryFeeBps: 100, openP2PFeeBps: 50});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000, 2_000);
     }
 
     function testConstructor_RevertsInvalidDeliveryFee() public {
@@ -92,7 +98,7 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 10_001, openP2PFeeBps: 50});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000, 2_000);
     }
 
     function testConstructor_RevertsInvalidOpenP2PFee() public {
@@ -100,7 +106,7 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 10_001});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooLarge.selector, 10_001, 10_000));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000, 2_000);
     }
 
     function testConstructor_RevertsFeeBelowMin_Taker() public {
@@ -108,7 +114,7 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 4, deliveryFeeBps: 100, openP2PFeeBps: 100});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 4, 5));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000, 2_000);
     }
 
     function testConstructor_RevertsFeeBelowMin_Delivery() public {
@@ -116,7 +122,7 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 0, openP2PFeeBps: 100});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 0, 5));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000, 2_000);
     }
 
     function testConstructor_RevertsFeeBelowMin_OpenP2P() public {
@@ -124,7 +130,7 @@ contract OTCOperatorFactoryTest is Test {
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 2});
         vm.expectRevert(abi.encodeWithSelector(IOTCOperatorFactoryErrors.FeeBpsTooSmall.selector, 2, 5));
         vm.prank(address(registry));
-        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000);
+        new OTCOperatorFactory(address(registry), operatorOwner, operatorAdmin, operatorReceiver, bad, 1_000, 2_000);
     }
 
     // ── deployClientVault ────────────────────────────────────────────────────────
@@ -566,10 +572,11 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(vaultB.tokenLockUntil(token), block.timestamp + 30 days);
     }
 
-    // ── protocolFeeShareBps & protocolFeeReceiver ────────────────────────────────
+    // ── protocol fee shares & protocolFeeReceiver ────────────────────────────────
 
-    function testConstructor_CachesProtocolFeeShareFromRegistry() public view {
-        assertEq(factory.protocolFeeShareBps(), 1_000);
+    function testConstructor_CachesProtocolFeeSharesFromRegistry() public view {
+        assertEq(factory.deliveryOnlyProtocolFeeShareBps(), 1_000);
+        assertEq(factory.otherProtocolFeeShareBps(), 2_000);
     }
 
     function testProtocolFeeReceiver_ReadsDynamicallyFromRegistry() public {
@@ -579,38 +586,50 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(factory.protocolFeeReceiver(), newReceiver);
     }
 
-    // ── setProtocolFeeShareBps (registry push) ──────────────────────────────────
+    // ── protocol fee share updates (registry push) ───────────────────────────────
 
     function _deployHighShareFactory() internal returns (OTCFactoryRegistry r2, OTCOperatorFactory f2) {
-        r2 = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 2_500);
+        r2 = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 2_500, 3_000);
         vm.prank(operatorOwner);
         f2 = OTCOperatorFactory(r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig));
     }
 
-    function testSetProtocolFeeShareBps_RegistryPushesDirectly() public {
+    function testSetProtocolFeeShares_RegistryPushesDirectly() public {
         (OTCFactoryRegistry r2, OTCOperatorFactory f2) = _deployHighShareFactory();
-        assertEq(f2.protocolFeeShareBps(), 2_500);
+        assertEq(f2.deliveryOnlyProtocolFeeShareBps(), 2_500);
+        assertEq(f2.otherProtocolFeeShareBps(), 3_000);
 
         vm.prank(protocolOwner);
-        r2.setFactoryProtocolFeeShareBps(address(f2), 1_000);
+        r2.setFactoryDeliveryOnlyProtocolFeeShareBps(address(f2), 1_000);
+        vm.prank(protocolOwner);
+        r2.setFactoryOtherProtocolFeeShareBps(address(f2), 1_500);
 
-        // Factory value updated immediately — no sync call needed
-        assertEq(f2.protocolFeeShareBps(), 1_000);
+        assertEq(f2.deliveryOnlyProtocolFeeShareBps(), 1_000);
+        assertEq(f2.otherProtocolFeeShareBps(), 1_500);
     }
 
-    function testSetProtocolFeeShareBps_EmitsEventOnFactory() public {
+    function testSetProtocolFeeShares_EmitEventsOnFactory() public {
         (OTCFactoryRegistry r2, OTCOperatorFactory f2) = _deployHighShareFactory();
 
         vm.prank(protocolOwner);
         vm.expectEmit(false, false, false, true);
-        emit IOTCOperatorFactoryEvents.ProtocolFeeShareSynced(2_500, 1_000);
-        r2.setFactoryProtocolFeeShareBps(address(f2), 1_000);
+        emit IOTCOperatorFactoryEvents.DeliveryOnlyProtocolFeeShareSynced(2_500, 1_000);
+        r2.setFactoryDeliveryOnlyProtocolFeeShareBps(address(f2), 1_000);
+
+        vm.prank(protocolOwner);
+        vm.expectEmit(false, false, false, true);
+        emit IOTCOperatorFactoryEvents.OtherProtocolFeeShareSynced(3_000, 1_500);
+        r2.setFactoryOtherProtocolFeeShareBps(address(f2), 1_500);
     }
 
-    function testSetProtocolFeeShareBps_RevertsIfNotRegistry() public {
+    function testSetProtocolFeeShares_RevertIfNotRegistry() public {
         vm.prank(stranger);
         vm.expectRevert(IOTCOperatorFactoryErrors.NotRegistry.selector);
-        factory.setProtocolFeeShareBps(500);
+        factory.setDeliveryOnlyProtocolFeeShareBps(500);
+
+        vm.prank(stranger);
+        vm.expectRevert(IOTCOperatorFactoryErrors.NotRegistry.selector);
+        factory.setOtherProtocolFeeShareBps(500);
     }
 
     function testIsDeliveryFeeWaived_IrreversibleOnceSet() public {
@@ -626,18 +645,6 @@ contract OTCOperatorFactoryTest is Test {
         assertTrue(factory.isDeliveryFeeWaived());
     }
 
-    function testGetCurrentFeeSnapshot_ReflectsRegistryPushImmediately() public {
-        (OTCFactoryRegistry r2, OTCOperatorFactory f2) = _deployHighShareFactory();
-        OTCTypes.FeeSnapshot memory snapshot = f2.getCurrentFeeSnapshot();
-        assertEq(snapshot.protocolFeeShareBps, 2_500);
-
-        vm.prank(protocolOwner);
-        r2.setFactoryProtocolFeeShareBps(address(f2), 1_000);
-
-        snapshot = f2.getCurrentFeeSnapshot();
-        assertEq(snapshot.protocolFeeShareBps, 1_000);
-    }
-
     // ── getCurrentFeeSnapshot ────────────────────────────────────────────────────
 
     function testGetCurrentFeeSnapshot_Values() public view {
@@ -645,7 +652,6 @@ contract OTCOperatorFactoryTest is Test {
         assertEq(snapshot.takerFeeBps, 100);
         assertEq(snapshot.deliveryFeeBps, 100);
         assertEq(snapshot.openP2PFeeBps, 50);
-        assertEq(snapshot.protocolFeeShareBps, 1_000);
         assertEq(snapshot.operatorFeeReceiver, operatorReceiver);
         assertEq(snapshot.protocolFeeReceiver, protocolReceiver);
     }

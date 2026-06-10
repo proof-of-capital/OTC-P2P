@@ -11,12 +11,18 @@ interface IOTCFactoryRegistryEvents {
     event VaultRegistered(address indexed operatorFactory, address indexed vault, address indexed client);
     /// @notice Emitted when the protocol fee receiver address changes.
     event ProtocolFeeReceiverUpdated(address indexed previousReceiver, address indexed newReceiver);
-    /// @notice Emitted when the default protocol fee share changes.
-    event DefaultProtocolFeeShareUpdated(uint16 previousShareBps, uint16 newShareBps);
+    /// @notice Emitted when the default DeliveryOnly protocol fee share changes.
+    event DefaultDeliveryOnlyProtocolFeeShareUpdated(uint16 previousShareBps, uint16 newShareBps);
+    /// @notice Emitted when the default non-DeliveryOnly protocol fee share changes.
+    event DefaultOtherProtocolFeeShareUpdated(uint16 previousShareBps, uint16 newShareBps);
     /// @notice Emitted when the delivery protocol fee is permanently waived for an operator factory.
     event OperatorDeliveryFeeWaived(address indexed operatorFactory);
-    /// @notice Emitted when registry decreases a factory's protocol fee share.
-    event FactoryProtocolFeeShareDecreased(
+    /// @notice Emitted when registry decreases a factory's DeliveryOnly protocol fee share.
+    event FactoryDeliveryOnlyProtocolFeeShareDecreased(
+        address indexed operatorFactory, uint16 previousShareBps, uint16 newShareBps
+    );
+    /// @notice Emitted when registry decreases a factory's non-DeliveryOnly protocol fee share.
+    event FactoryOtherProtocolFeeShareDecreased(
         address indexed operatorFactory, uint16 previousShareBps, uint16 newShareBps
     );
     /// @notice Emitted when the client vault implementation address is updated.

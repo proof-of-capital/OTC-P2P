@@ -65,7 +65,7 @@ contract OTCP2PTest is Test {
         weth = new MockERC20("Wrapped Ether", "WETH");
         dai = new MockERC20("Dai", "DAI");
 
-        registry = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 1_000);
+        registry = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 1_000, 2_000);
 
         OTCTypes.OperatorFeeConfig memory config =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 50});
@@ -88,19 +88,20 @@ contract OTCP2PTest is Test {
         assertEq(factory.getVaultsCount(), 2);
         assertEq(factory.owner(), operatorOwner);
         assertEq(factory.admin(), operatorAdmin);
-        assertEq(registry.getProtocolFeeShareBps(address(factory)), 1_000);
+        assertEq(registry.getDeliveryOnlyProtocolFeeShareBps(address(factory)), 1_000);
+        assertEq(registry.getOtherProtocolFeeShareBps(address(factory)), 2_000);
 
         // Registry cannot increase — trying to set the same value reverts
         vm.prank(protocolOwner);
         vm.expectRevert(
             abi.encodeWithSelector(IOTCFactoryRegistryErrors.ProtocolFeeCannotIncrease.selector, 1_000, 1_000)
         );
-        registry.setFactoryProtocolFeeShareBps(address(factory), 1_000);
+        registry.setFactoryDeliveryOnlyProtocolFeeShareBps(address(factory), 1_000);
 
-        // Delivery fee waivers don't affect getProtocolFeeShareBps (only delivery snapshots in vault)
+        // Delivery fee waivers don't change the configured DeliveryOnly share.
         vm.prank(protocolOwner);
         registry.setOperatorDeliveryFeeWaived(address(factory));
-        assertEq(registry.getProtocolFeeShareBps(address(factory)), 1_000);
+        assertEq(registry.getDeliveryOnlyProtocolFeeShareBps(address(factory)), 1_000);
         assertTrue(factory.isDeliveryFeeWaived());
         // Waiver is irreversible
         assertTrue(registry.isDeliveryFeeWaived(address(factory)));
@@ -224,6 +225,36 @@ contract OTCP2PTest is Test {
         assertEq(usdt.balanceOf(protocolReceiver), 10);
         assertEq(usdt.balanceOf(operatorReceiver), 90);
         assertEq(usdt.balanceOf(extraReceiver), 50);
+    }
+
+    function testDeliveryUsesCurrentVaultLevelProtocolShareAtExecution() public {
+        _deposit(vaultA, usdt, clientA, 20_000);
+        uint256 proposalId = _proposeDirectDelivery(vaultA, address(usdt), 10_000, recipient, emptyExtraFee);
+
+        vm.prank(clientA);
+        vaultA.acceptDeliveryProposal(proposalId);
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        vaultA.executeDelivery(proposalId);
+
+        assertEq(usdt.balanceOf(protocolReceiver), 20);
+        assertEq(usdt.balanceOf(operatorReceiver), 80);
+    }
+
+    function testDeliveryUsesCurrentFactoryProtocolShareAtExecution() public {
+        _deposit(vaultA, usdt, clientA, 20_000);
+        uint256 proposalId = _proposeDirectDelivery(vaultA, address(usdt), 10_000, recipient, emptyExtraFee);
+
+        vm.prank(clientA);
+        vaultA.acceptDeliveryProposal(proposalId);
+        vm.prank(clientA);
+        vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        vm.prank(protocolOwner);
+        registry.setFactoryOtherProtocolFeeShareBps(address(factory), 1_000);
+        vaultA.executeDelivery(proposalId);
+
+        assertEq(usdt.balanceOf(protocolReceiver), 10);
+        assertEq(usdt.balanceOf(operatorReceiver), 90);
     }
 
     /// @notice Inclusive direct delivery treats amount as the total budget and deducts bps fees from it.
@@ -495,8 +526,8 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(supplier), 100_000);
         assertEq(weth.balanceOf(address(vaultA)), 9_900);
-        assertEq(weth.balanceOf(protocolReceiver), 10);
-        assertEq(weth.balanceOf(operatorReceiver), 90);
+        assertEq(weth.balanceOf(protocolReceiver), 20);
+        assertEq(weth.balanceOf(operatorReceiver), 80);
     }
 
     /// @notice Admin-created gross swaps charge taker fees above amountIn so the vault keeps the full quoted input.
@@ -524,8 +555,8 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(supplier), 100_000);
         assertEq(weth.balanceOf(address(vaultA)), 10_000);
-        assertEq(weth.balanceOf(protocolReceiver), 10);
-        assertEq(weth.balanceOf(operatorReceiver), 90);
+        assertEq(weth.balanceOf(protocolReceiver), 20);
+        assertEq(weth.balanceOf(operatorReceiver), 80);
         assertEq(weth.balanceOf(supplier), 0);
     }
 
@@ -553,8 +584,8 @@ contract OTCP2PTest is Test {
         vaultA.executeSwap(proposalId);
 
         assertEq(weth.balanceOf(address(vaultA)), 4_950);
-        assertEq(weth.balanceOf(protocolReceiver), 5);
-        assertEq(weth.balanceOf(operatorReceiver), 45);
+        assertEq(weth.balanceOf(protocolReceiver), 10);
+        assertEq(weth.balanceOf(operatorReceiver), 40);
         assertEq(weth.balanceOf(externalParty), 5_000);
     }
 
@@ -652,6 +683,8 @@ contract OTCP2PTest is Test {
 
         vm.prank(clientA);
         vaultA.setSwapAccessLevel(OTCTypes.SwapAccessLevel.OpenP2P);
+        vm.prank(protocolOwner);
+        registry.setOperatorDeliveryFeeWaived(address(factory));
 
         uint256 proposalId = _createSwap(
             vaultA,
@@ -668,8 +701,8 @@ contract OTCP2PTest is Test {
 
         assertEq(usdt.balanceOf(externalParty), 10_000);
         assertEq(weth.balanceOf(address(vaultA)), 4_975);
-        assertEq(weth.balanceOf(protocolReceiver), 2);
-        assertEq(weth.balanceOf(operatorReceiver), 23);
+        assertEq(weth.balanceOf(protocolReceiver), 5);
+        assertEq(weth.balanceOf(operatorReceiver), 20);
 
         uint256 lockId = _proposeLock(vaultA, address(usdt), 1 days);
         vm.prank(clientA);
