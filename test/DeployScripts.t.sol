@@ -12,10 +12,6 @@ contract OTCDeployConfigHarness is OTCDeployConfig {
     function toUint16(uint256 value, string memory name) external pure returns (uint16) {
         return _toUint16(value, name);
     }
-
-    function isNonEmptyString(string memory value) external pure returns (bool) {
-        return _isNonEmptyString(value);
-    }
 }
 
 contract DeployScriptsTest is Test {
@@ -37,10 +33,5 @@ contract DeployScriptsTest is Test {
 
     function testToUint16ReturnsValidValue() public view {
         assertEq(harness.toUint16(2_500, "TEST_BPS"), 2_500);
-    }
-
-    function testIsNonEmptyString() public view {
-        assertFalse(harness.isNonEmptyString(""));
-        assertTrue(harness.isNonEmptyString("agent-1"));
     }
 }

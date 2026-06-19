@@ -33,7 +33,7 @@ contract OTCOperatorFactoryTest is Test {
         registry = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 1_000, 2_000);
         vm.prank(operatorOwner);
         factory = OTCOperatorFactory(
-            registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, "")
+            registry.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig)
         );
     }
 
@@ -591,9 +591,7 @@ contract OTCOperatorFactoryTest is Test {
     function _deployHighShareFactory() internal returns (OTCFactoryRegistry r2, OTCOperatorFactory f2) {
         r2 = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 2_500, 3_000);
         vm.prank(operatorOwner);
-        f2 = OTCOperatorFactory(
-            r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig, "")
-        );
+        f2 = OTCOperatorFactory(r2.deployOperatorFactory(operatorOwner, operatorAdmin, operatorReceiver, defaultConfig));
     }
 
     function testSetProtocolFeeShares_RegistryPushesDirectly() public {

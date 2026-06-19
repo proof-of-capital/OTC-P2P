@@ -36,21 +36,6 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
     /// @notice Ordered list of operator factories deployed through this registry.
     address[] public operatorFactories;
 
-    /// @notice Info stored per registered agent.
-    struct AgentInfo {
-        address agentAddress;
-        uint16 feeBps;
-    }
-
-    /// @notice Registered agents keyed by their string ID.
-    mapping(string agentId => AgentInfo) public agents;
-    /// @notice String agent ID assigned to each operator factory; empty means no agent.
-    mapping(address operatorFactory => string) public factoryAgentId;
-    /// @notice Pending fee balances per agent ID per token.
-    mapping(string agentId => mapping(address token => uint256)) public agentPendingFees;
-    /// @notice Pending protocol fee balances per token.
-    mapping(address token => uint256) public protocolPendingFees;
-
     constructor(
         address initialOwner,
         address initialProtocolFeeReceiver,
@@ -72,15 +57,12 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         address operatorOwner,
         address operatorAdmin,
         address operatorFeeReceiver,
-        OTCTypes.OperatorFeeConfig calldata defaultFeeConfig,
-        string calldata agentId
+        OTCTypes.OperatorFeeConfig calldata defaultFeeConfig
     ) external override returns (address operatorFactory) {
         require(msg.sender == operatorOwner, NotOperatorOwner());
         require(operatorAdmin != address(0), InvalidAddress());
         require(operatorFeeReceiver != address(0), InvalidAddress());
         OTCTypes._requireValidFeeConfig(defaultFeeConfig);
-        bool hasAgent = bytes(agentId).length > 0;
-        if (hasAgent) require(agents[agentId].agentAddress != address(0), AgentNotRegistered(agentId));
 
         operatorFactory = address(
             new OTCOperatorFactory(
@@ -95,11 +77,6 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         );
         isOperatorFactory[operatorFactory] = true;
         operatorFactories.push(operatorFactory);
-
-        if (hasAgent) {
-            factoryAgentId[operatorFactory] = agentId;
-            emit FactoryAgentAssigned(operatorFactory, agentId);
-        }
 
         emit OperatorFactoryDeployed(operatorFactory, operatorOwner, operatorAdmin);
     }
@@ -196,85 +173,6 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
     /// @inheritdoc IOTCFactoryRegistry
     function getOperatorFactoriesCount() external view override returns (uint256) {
         return operatorFactories.length;
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function registerAgent(string calldata agentId, address agentAddress, uint16 feeBps) external override onlyOwner {
-        require(bytes(agentId).length > 0, EmptyAgentId());
-        require(agentAddress != address(0), InvalidAddress());
-        require(agents[agentId].agentAddress == address(0), AgentAlreadyRegistered(agentId));
-        _requireValidAgentFee(feeBps);
-        agents[agentId] = AgentInfo({agentAddress: agentAddress, feeBps: feeBps});
-        emit AgentRegistered(agentId, agentAddress, feeBps);
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function increaseAgentFee(string calldata agentId, uint16 newFeeBps) external override onlyOwner {
-        AgentInfo storage info = agents[agentId];
-        require(info.agentAddress != address(0), AgentNotRegistered(agentId));
-        uint16 current = info.feeBps;
-        require(newFeeBps > current, AgentFeeNotHigher(newFeeBps, current));
-        require(
-            newFeeBps <= OTCConstants.MAX_AGENT_FEE_BPS,
-            AgentFeeOutOfRange(newFeeBps, OTCConstants.MIN_AGENT_FEE_BPS, OTCConstants.MAX_AGENT_FEE_BPS)
-        );
-        info.feeBps = newFeeBps;
-        emit AgentFeeIncreased(agentId, current, newFeeBps);
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function setAgentAddress(string calldata agentId, address newAddress) external override {
-        AgentInfo storage info = agents[agentId];
-        require(info.agentAddress != address(0), AgentNotRegistered(agentId));
-        require(msg.sender == info.agentAddress, NotAgentOwner());
-        require(newAddress != address(0), InvalidAddress());
-        address old = info.agentAddress;
-        info.agentAddress = newAddress;
-        emit AgentAddressUpdated(agentId, old, newAddress);
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function receiveProtocolFee(address token, uint256 amount) external override {
-        require(isVault[msg.sender], NotVault());
-        if (amount == 0) return;
-        address factoryAddress = OTCClientVault(payable(msg.sender)).factory();
-        string storage aid = factoryAgentId[factoryAddress];
-        if (bytes(aid).length > 0) {
-            AgentInfo storage info = agents[aid];
-            uint256 agentShare = amount * info.feeBps / OTCConstants.MAX_FEE_BPS;
-            agentPendingFees[aid][token] += agentShare;
-            protocolPendingFees[token] += amount - agentShare;
-        } else {
-            protocolPendingFees[token] += amount;
-        }
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function claimAgentFees(string calldata agentId, address token) external override {
-        AgentInfo storage info = agents[agentId];
-        require(info.agentAddress != address(0), AgentNotRegistered(agentId));
-        require(msg.sender == info.agentAddress, NotAgentOwner());
-        uint256 amount = agentPendingFees[agentId][token];
-        require(amount > 0, NoPendingFees());
-        agentPendingFees[agentId][token] = 0;
-        IERC20(token).safeTransfer(msg.sender, amount);
-        emit AgentFeesClaimed(agentId, msg.sender, token, amount);
-    }
-
-    /// @inheritdoc IOTCFactoryRegistry
-    function withdrawProtocolFees(address token, uint256 amount, address to) external override onlyOwner {
-        require(to != address(0), InvalidAddress());
-        if (amount == type(uint256).max) amount = protocolPendingFees[token];
-        protocolPendingFees[token] -= amount;
-        IERC20(token).safeTransfer(to, amount);
-        emit ProtocolFeesWithdrawn(to, token, amount);
-    }
-
-    function _requireValidAgentFee(uint16 feeBps) internal pure {
-        require(
-            feeBps >= OTCConstants.MIN_AGENT_FEE_BPS && feeBps <= OTCConstants.MAX_AGENT_FEE_BPS,
-            AgentFeeOutOfRange(feeBps, OTCConstants.MIN_AGENT_FEE_BPS, OTCConstants.MAX_AGENT_FEE_BPS)
-        );
     }
 
     function _requireValidProtocolFeeShare(uint16 shareBps) internal pure {

@@ -18,13 +18,6 @@ abstract contract OTCDeployConfig is Script {
         address operatorAdmin;
         address operatorFeeReceiver;
         OTCTypes.OperatorFeeConfig feeConfig;
-        string agentId;
-    }
-
-    struct AgentConfig {
-        string agentId;
-        address agentAddress;
-        uint16 agentFeeBps;
     }
 
     struct VaultConfig {
@@ -67,21 +60,12 @@ abstract contract OTCDeployConfig is Script {
                 takerFeeBps: _toUint16(vm.envUint("TAKER_FEE_BPS"), "TAKER_FEE_BPS"),
                 deliveryFeeBps: _toUint16(vm.envUint("DELIVERY_FEE_BPS"), "DELIVERY_FEE_BPS"),
                 openP2PFeeBps: _toUint16(vm.envUint("OPEN_P2P_FEE_BPS"), "OPEN_P2P_FEE_BPS")
-            }),
-            agentId: vm.envOr("AGENT_ID", string(""))
+            })
         });
 
         _requireNonZero(config.operatorOwner, "OPERATOR_OWNER");
         _requireNonZero(config.operatorAdmin, "OPERATOR_ADMIN");
         _requireNonZero(config.operatorFeeReceiver, "OPERATOR_FEE_RECEIVER");
-    }
-
-    function _agentConfig() internal view returns (AgentConfig memory config) {
-        config = AgentConfig({
-            agentId: vm.envOr("AGENT_ID", string("")),
-            agentAddress: vm.envOr("AGENT_ADDRESS", address(0)),
-            agentFeeBps: _toUint16(vm.envOr("AGENT_FEE_BPS", uint256(0)), "AGENT_FEE_BPS")
-        });
     }
 
     function _vaultConfig() internal view returns (VaultConfig memory config) {
@@ -119,9 +103,5 @@ abstract contract OTCDeployConfig is Script {
         require(value <= type(uint16).max, string.concat(name, " must fit uint16"));
         // forge-lint: disable-next-line(unsafe-typecast)
         return uint16(value);
-    }
-
-    function _isNonEmptyString(string memory value) internal pure returns (bool) {
-        return bytes(value).length > 0;
     }
 }

@@ -13,18 +13,12 @@ contract DeployOTCProtocolScript is OTCDeployConfig {
         address deployer = _deployer(privateKey);
         RegistryConfig memory registryConfig = _registryConfig();
         FactoryConfig memory factoryConfig = _factoryConfig();
-        AgentConfig memory agentConfig = _agentConfig();
         VaultConfig memory vaultConfig = _vaultConfig();
 
         _requireOperatorOwner(deployer, factoryConfig.operatorOwner);
 
-        bool shouldRegisterAgent = _isNonEmptyString(agentConfig.agentId);
         if (registryConfig.useLightVault) {
             _requireProtocolOwner(deployer, registryConfig.protocolOwner, "USE_LIGHT_VAULT");
-        }
-        if (shouldRegisterAgent) {
-            _requireProtocolOwner(deployer, registryConfig.protocolOwner, "AGENT_ID");
-            _requireNonZero(agentConfig.agentAddress, "AGENT_ADDRESS");
         }
 
         vm.startBroadcast(privateKey);
@@ -42,19 +36,11 @@ contract DeployOTCProtocolScript is OTCDeployConfig {
             console2.log("OTCClientVaultLight implementation", address(lightImplementation));
         }
 
-        if (shouldRegisterAgent) {
-            registry.registerAgent(agentConfig.agentId, agentConfig.agentAddress, agentConfig.agentFeeBps);
-            console2.log("agentId", agentConfig.agentId);
-            console2.log("agentAddress", agentConfig.agentAddress);
-            console2.log("agentFeeBps", agentConfig.agentFeeBps);
-        }
-
         operatorFactory = registry.deployOperatorFactory(
             factoryConfig.operatorOwner,
             factoryConfig.operatorAdmin,
             factoryConfig.operatorFeeReceiver,
-            factoryConfig.feeConfig,
-            factoryConfig.agentId
+            factoryConfig.feeConfig
         );
 
         if (vaultConfig.deployClientVault) {

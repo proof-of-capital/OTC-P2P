@@ -13,8 +13,4 @@ library OTCConstants {
     uint16 internal constant MIN_PROTOCOL_FEE_SHARE_BPS = 1_000;
     /// @notice Initial protocol fee share assigned to every new operator factory (25 %).
     uint16 internal constant DEFAULT_PROTOCOL_FEE_SHARE_BPS = 2_500;
-    /// @notice Minimum agent (referral) fee share in basis points (1 %).
-    uint16 internal constant MIN_AGENT_FEE_BPS = 100;
-    /// @notice Maximum agent (referral) fee share in basis points (80 %).
-    uint16 internal constant MAX_AGENT_FEE_BPS = 8_000;
 }

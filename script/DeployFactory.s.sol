@@ -14,7 +14,7 @@ contract DeployFactoryScript is OTCDeployConfig {
 
         vm.startBroadcast(privateKey);
         operatorFactory = registry.deployOperatorFactory(
-            config.operatorOwner, config.operatorAdmin, config.operatorFeeReceiver, config.feeConfig, config.agentId
+            config.operatorOwner, config.operatorAdmin, config.operatorFeeReceiver, config.feeConfig
         );
         vm.stopBroadcast();
 

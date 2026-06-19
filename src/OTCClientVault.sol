@@ -402,9 +402,7 @@ contract OTCClientVault is
         uint256 operatorNetFee = operatorFee - protocolFee;
 
         if (protocolFee > 0) {
-            address reg = f.registry();
-            IERC20(token).safeTransfer(reg, protocolFee);
-            IOTCFactoryRegistry(reg).receiveProtocolFee(token, protocolFee);
+            IERC20(token).safeTransfer(f.protocolFeeReceiver(), protocolFee);
         }
         if (operatorNetFee > 0) IERC20(token).safeTransfer(snapshot.operatorFeeReceiver, operatorNetFee);
     }

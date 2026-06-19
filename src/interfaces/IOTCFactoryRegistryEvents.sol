@@ -25,16 +25,4 @@ interface IOTCFactoryRegistryEvents {
     );
     /// @notice Emitted when the client vault implementation address is updated.
     event ClientVaultImplementationUpdated(address indexed previousImpl, address indexed newImpl);
-    /// @notice Emitted when a new agent (referral) is registered.
-    event AgentRegistered(string agentId, address agentAddress, uint16 feeBps);
-    /// @notice Emitted when an agent's fee share is increased.
-    event AgentFeeIncreased(string agentId, uint16 previousFeeBps, uint16 newFeeBps);
-    /// @notice Emitted when a factory is assigned an agent at deployment.
-    event FactoryAgentAssigned(address indexed operatorFactory, string agentId);
-    /// @notice Emitted when an agent updates their receiving address.
-    event AgentAddressUpdated(string agentId, address indexed oldAddress, address indexed newAddress);
-    /// @notice Emitted when an agent claims their accumulated fees.
-    event AgentFeesClaimed(string agentId, address indexed agentAddress, address indexed token, uint256 amount);
-    /// @notice Emitted when the owner withdraws accumulated protocol fees.
-    event ProtocolFeesWithdrawn(address indexed to, address indexed token, uint256 amount);
 }
