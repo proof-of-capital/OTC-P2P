@@ -77,6 +77,12 @@ contract OTCP2PTest is Test {
         vaultA = OTCClientVault(payable(factory.deployClientVault(clientA)));
         vm.prank(operatorAdmin);
         vaultB = OTCClientVault(payable(factory.deployClientVault(clientB)));
+
+        vm.startPrank(protocolOwner);
+        registry.setAllowedToken(address(usdt), true);
+        registry.setAllowedToken(address(weth), true);
+        registry.setAllowedToken(address(dai), true);
+        vm.stopPrank();
     }
 
     /// @notice Registry correctly tracks deployed factories and vaults; protocol fee overrides apply in priority order.
@@ -141,6 +147,122 @@ contract OTCP2PTest is Test {
             abi.encodeWithSelector(IOTCClientVaultErrors.TokenLocked.selector, address(usdt), usdtUnlocksAt)
         );
         vaultA.withdraw(address(usdt), 100, recipient);
+    }
+
+    function testAllowlist_BlocksDepositLockAndDeliveryCreation() public {
+        MockERC20 unlisted = new MockERC20("Unlisted", "NOPE");
+        unlisted.mint(clientA, 1_000);
+        vm.startPrank(clientA);
+        unlisted.approve(address(vaultA), 1_000);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.deposit(address(unlisted), 1_000);
+        vm.stopPrank();
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.proposeLock(address(unlisted), block.timestamp + 1 days, block.timestamp + 1 days);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(unlisted),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: true,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: address(0x7777),
+                target: address(0x8888),
+                callData: bytes("call"),
+                expectedReceivedToken: address(unlisted),
+                minExpectedReceivedAmount: 1,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        OTCTypes.ExtraFee memory badExtraFee =
+            OTCTypes.ExtraFee({token: address(unlisted), amount: 1, receiver: extraReceiver});
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.proposeDelivery(
+            OTCTypes.DeliveryProposalParams({
+                useAllowanceCall: false,
+                feeMode: OTCTypes.FeeMode.Gross,
+                token: address(usdt),
+                amount: 100,
+                deliveryAddress: recipient,
+                target: address(0),
+                callData: bytes(""),
+                expectedReceivedToken: address(0),
+                minExpectedReceivedAmount: 0,
+                deadline: block.timestamp + 1 days
+            }),
+            badExtraFee
+        );
+    }
+
+    function testAllowlist_BlocksLockAcceptAndAdminDecreaseAfterDelist() public {
+        uint256 lockId = _proposeLock(vaultA, address(usdt), 10 days);
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), false);
+
+        vm.prank(clientA);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(usdt)));
+        vaultA.acceptLockProposal(lockId);
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), true);
+        vm.prank(clientA);
+        vaultA.acceptLockProposal(lockId);
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), false);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(usdt)));
+        vaultA.adminDecreaseLock(address(usdt), block.timestamp + 1 days);
+    }
+
+    function testAllowlist_AllowsWithdrawAndCancelAfterDelist() public {
+        _deposit(vaultA, usdt, clientA, 1_000);
+        uint256 deliveryId = _proposeDirectDelivery(vaultA, address(usdt), 100, recipient, emptyExtraFee);
+        uint256 swapId = _createSwap(
+            vaultA, clientA, OTCTypes.SwapAccessLevel.ManagedP2P, externalParty, address(usdt), 100, address(weth), 100
+        );
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), false);
+
+        vm.prank(clientA);
+        vaultA.withdraw(address(usdt), 100, recipient);
+        assertEq(usdt.balanceOf(recipient), 100);
+
+        vm.prank(clientA);
+        vaultA.cancelDeliveryProposal(deliveryId);
+        assertTrue(vaultA.deliveryProposals(deliveryId).cancelled);
+
+        vm.prank(externalParty);
+        vaultA.cancelSwapProposal(swapId);
+        assertTrue(vaultA.swapProposals(swapId).cancelled);
     }
 
     /// @notice Accepting a shorter lock does not shorten an existing longer lock; admin can only reduce an active lock.
@@ -526,6 +648,113 @@ contract OTCP2PTest is Test {
         assertEq(weth.balanceOf(protocolReceiver), 20);
         assertEq(weth.balanceOf(address(registry)), 0);
         assertEq(weth.balanceOf(operatorReceiver), 80);
+    }
+
+    function testAllowlist_BlocksSwapCreationForUnlistedTokensAndExtraFee() public {
+        MockERC20 unlisted = new MockERC20("Unlisted", "NOPE");
+        _enableSwapLevel(vaultA, OTCTypes.SwapAccessLevel.SupplierOnly);
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.SupplierOnly,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: supplier,
+                tokenOut: address(unlisted),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.SupplierOnly,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: supplier,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(unlisted),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            emptyExtraFee
+        );
+
+        OTCTypes.ExtraFee memory badExtraFee =
+            OTCTypes.ExtraFee({token: address(unlisted), amount: 1, receiver: extraReceiver});
+        vm.prank(operatorAdmin);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(unlisted)));
+        vaultA.createSwapProposal(
+            OTCTypes.SwapProposalParams({
+                level: OTCTypes.SwapAccessLevel.SupplierOnly,
+                feeMode: OTCTypes.FeeMode.Inclusive,
+                counterparty: supplier,
+                tokenOut: address(usdt),
+                amountOut: 100,
+                tokenIn: address(weth),
+                amountIn: 100,
+                deadline: block.timestamp + 1 days
+            }),
+            badExtraFee
+        );
+    }
+
+    function testAllowlist_BlocksDeliveryAndSwapApprovalAndExecutionAfterDelist() public {
+        _deposit(vaultA, usdt, clientA, 2_000);
+        weth.mint(supplier, 1_000);
+        vm.prank(supplier);
+        weth.approve(address(vaultA), 1_000);
+
+        uint256 deliveryId = _proposeDirectDelivery(vaultA, address(usdt), 100, recipient, emptyExtraFee);
+        uint256 swapId = _createSwap(
+            vaultA,
+            operatorAdmin,
+            OTCTypes.SwapAccessLevel.SupplierOnly,
+            supplier,
+            address(usdt),
+            100,
+            address(weth),
+            100
+        );
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), false);
+
+        vm.prank(clientA);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(usdt)));
+        vaultA.acceptDeliveryProposal(deliveryId);
+
+        vm.prank(clientA);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(usdt)));
+        vaultA.approveSwap(swapId);
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), true);
+
+        vm.prank(clientA);
+        vaultA.acceptDeliveryProposal(deliveryId);
+        vm.prank(clientA);
+        vaultA.approveSwap(swapId);
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), false);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(usdt)));
+        vaultA.executeDelivery(deliveryId);
+
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(usdt), true);
+        vm.prank(protocolOwner);
+        registry.setAllowedToken(address(weth), false);
+
+        vm.prank(supplier);
+        vm.expectRevert(abi.encodeWithSelector(IOTCFactoryRegistryErrors.TokenNotAllowed.selector, address(weth)));
+        vaultA.executeSwap(swapId);
     }
 
     /// @notice Admin-created gross swaps charge taker fees above amountIn so the vault keeps the full quoted input.

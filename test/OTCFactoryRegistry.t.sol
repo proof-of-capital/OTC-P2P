@@ -305,6 +305,36 @@ contract OTCFactoryRegistryTest is Test {
         registry.setProtocolFeeReceiver(address(0));
     }
 
+    // ── setAllowedToken ─────────────────────────────────────────────────────────
+
+    function testSetAllowedToken_Updates() public {
+        address token = address(0x7777);
+
+        vm.prank(protocolOwner);
+        vm.expectEmit(true, false, false, true);
+        emit IOTCFactoryRegistryEvents.AllowedTokenUpdated(token, true);
+        registry.setAllowedToken(token, true);
+        assertTrue(registry.isAllowedToken(token));
+
+        vm.prank(protocolOwner);
+        vm.expectEmit(true, false, false, true);
+        emit IOTCFactoryRegistryEvents.AllowedTokenUpdated(token, false);
+        registry.setAllowedToken(token, false);
+        assertFalse(registry.isAllowedToken(token));
+    }
+
+    function testSetAllowedToken_RevertsNonOwner() public {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vm.prank(stranger);
+        registry.setAllowedToken(address(0x7777), true);
+    }
+
+    function testSetAllowedToken_RevertsZeroToken() public {
+        vm.prank(protocolOwner);
+        vm.expectRevert(IOTCFactoryRegistryErrors.InvalidAddress.selector);
+        registry.setAllowedToken(address(0), true);
+    }
+
     // ── setDefaultDeliveryOnlyProtocolFeeShareBps ────────────────────────────────────────────
 
     function testSetDefaultProtocolFeeShareBps_Updates() public {

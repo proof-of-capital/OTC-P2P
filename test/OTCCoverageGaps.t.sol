@@ -78,7 +78,9 @@ contract OTCCoverageGapsTest is Test {
         usdt = new MockERC20("USDT", "USDT");
         weth = new MockERC20("WETH", "WETH");
 
-        registry = new OTCFactoryRegistry(protocolOwner, protocolReceiver, 1_000, 2_000);
+        registry = new OTCFactoryRegistry(address(this), protocolReceiver, 1_000, 2_000);
+        registry.setAllowedToken(address(usdt), true);
+        registry.setAllowedToken(address(weth), true);
 
         OTCTypes.OperatorFeeConfig memory config =
             OTCTypes.OperatorFeeConfig({takerFeeBps: 100, deliveryFeeBps: 100, openP2PFeeBps: 50});

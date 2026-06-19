@@ -13,6 +13,7 @@ import {IOTCClientVaultLightErrors} from "./interfaces/IOTCClientVaultLightError
 import {IOTCClientVaultLightEvents} from "./interfaces/IOTCClientVaultLightEvents.sol";
 import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
 import {IOTCFactoryRegistry} from "./interfaces/IOTCFactoryRegistry.sol";
+import {IOTCFactoryRegistryErrors} from "./interfaces/IOTCFactoryRegistryErrors.sol";
 
 /// @title OTCClientVaultLight
 /// @notice Lightweight vault that supports only direct-transfer deliveries (DeliveryOnly mode, no swaps).
@@ -78,6 +79,7 @@ contract OTCClientVaultLight is
     function deposit(address token, uint256 amount) external override onlyOwner nonReentrant {
         require(token != address(0), InvalidAddress());
         require(amount > 0, InvalidAmount());
+        _requireAllowedToken(token);
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(msg.sender, token, amount);
@@ -109,6 +111,7 @@ contract OTCClientVaultLight is
         returns (uint256 proposalId)
     {
         require(token != address(0), InvalidAddress());
+        _requireAllowedToken(token);
         require(newLockUntil > block.timestamp, InvalidLockUntil());
         uint256 lockDuration = newLockUntil - block.timestamp;
         require(
@@ -130,6 +133,7 @@ contract OTCClientVaultLight is
     function acceptLockProposal(uint256 proposalId) external override onlyOwner nonReentrant {
         OTCTypes.LockProposal storage p = lockProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedToken(p.token);
 
         uint256 lockUntil = tokenLockUntil[p.token];
         if (p.newLockUntil > lockUntil) {
@@ -154,6 +158,7 @@ contract OTCClientVaultLight is
     /// @inheritdoc IOTCClientVaultLight
     function adminDecreaseLock(address token, uint256 newLockUntil) external override onlyFactoryAdmin {
         require(token != address(0), InvalidAddress());
+        _requireAllowedToken(token);
         require(newLockUntil > block.timestamp, InvalidLockUntil());
 
         uint256 previousLockUntil = tokenLockUntil[token];
@@ -177,6 +182,8 @@ contract OTCClientVaultLight is
         require(params.deliveryAddress != address(0), InvalidAddress());
         require(params.deadline > block.timestamp, InvalidDeadline());
         _validateExtraFee(extraFee);
+        _requireAllowedToken(params.token);
+        if (extraFee.amount != 0) _requireAllowedToken(extraFee.token);
 
         proposalId = _nextProposalId();
         LightDeliveryProposal storage p = _deliveryProposals[proposalId];
@@ -196,6 +203,7 @@ contract OTCClientVaultLight is
     function acceptDeliveryProposal(uint256 proposalId) external override {
         LightDeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedDeliveryProposal(p);
         _approveDeliveryRole(p, msg.sender);
         emit DeliveryAccepted(proposalId);
     }
@@ -204,6 +212,7 @@ contract OTCClientVaultLight is
     function executeDelivery(uint256 proposalId) external override nonReentrant {
         LightDeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedDeliveryProposal(p);
         _autoApproveDeliveryRole(p, msg.sender);
         require(p.clientApproved, ClientNotApproved());
         require(p.adminApproved, AdminNotApproved());
@@ -283,6 +292,16 @@ contract OTCClientVaultLight is
         }
         require(extraFee.token != address(0), InvalidExtraFeeToken());
         require(extraFee.receiver != address(0), InvalidExtraFeeReceiver());
+    }
+
+    function _requireAllowedDeliveryProposal(LightDeliveryProposal storage p) internal view {
+        _requireAllowedToken(p.token);
+        if (p.extraFee.amount != 0) _requireAllowedToken(p.extraFee.token);
+    }
+
+    function _requireAllowedToken(address token) internal view {
+        address registry = IOTCOperatorFactory(factory).registry();
+        require(IOTCFactoryRegistry(registry).isAllowedToken(token), IOTCFactoryRegistryErrors.TokenNotAllowed(token));
     }
 
     function _approveDeliveryRole(LightDeliveryProposal storage p, address approver) internal {

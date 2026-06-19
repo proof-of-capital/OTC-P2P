@@ -18,6 +18,8 @@ interface IOTCFactoryRegistry {
     function isOperatorFactory(address operatorFactory) external view returns (bool);
     /// @notice Whether `vault` is a client vault registered under this registry.
     function isVault(address vault) external view returns (bool);
+    /// @notice Whether `token` may be used in OTC workflows.
+    function isAllowedToken(address token) external view returns (bool);
     /// @notice Operator factory deployed at index `index`.
     function operatorFactories(uint256 index) external view returns (address);
 
@@ -42,6 +44,11 @@ interface IOTCFactoryRegistry {
     /// @notice Updates the address that receives the protocol fee.
     /// @param newReceiver New protocol fee receiver; must be non-zero.
     function setProtocolFeeReceiver(address newReceiver) external;
+
+    /// @notice Enables or disables `token` for OTC workflows.
+    /// @param token ERC-20 token address.
+    /// @param allowed Whether the token may be used.
+    function setAllowedToken(address token, bool allowed) external;
 
     /// @notice Updates the default DeliveryOnly protocol fee share used for new factory deployments.
     /// @param newShareBps New share in basis points.

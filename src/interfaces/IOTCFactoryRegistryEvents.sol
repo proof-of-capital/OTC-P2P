@@ -25,4 +25,6 @@ interface IOTCFactoryRegistryEvents {
     );
     /// @notice Emitted when the client vault implementation address is updated.
     event ClientVaultImplementationUpdated(address indexed previousImpl, address indexed newImpl);
+    /// @notice Emitted when the protocol owner changes whether a token may be used in OTC workflows.
+    event AllowedTokenUpdated(address indexed token, bool allowed);
 }

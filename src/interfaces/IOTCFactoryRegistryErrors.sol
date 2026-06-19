@@ -25,4 +25,6 @@ interface IOTCFactoryRegistryErrors {
     error VaultFactoryMismatch(address vault, address expectedFactory, address actualFactory);
     /// @notice Factory does not recognize the vault as its own deployment.
     error VaultNotFactoryOwned(address operatorFactory, address vault);
+    /// @notice Token is not enabled for OTC workflows.
+    error TokenNotAllowed(address token);
 }

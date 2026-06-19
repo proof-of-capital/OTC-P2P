@@ -13,6 +13,7 @@ import {IOTCClientVaultErrors} from "./interfaces/IOTCClientVaultErrors.sol";
 import {IOTCClientVaultEvents} from "./interfaces/IOTCClientVaultEvents.sol";
 import {IOTCOperatorFactory} from "./interfaces/IOTCOperatorFactory.sol";
 import {IOTCFactoryRegistry} from "./interfaces/IOTCFactoryRegistry.sol";
+import {IOTCFactoryRegistryErrors} from "./interfaces/IOTCFactoryRegistryErrors.sol";
 
 /// @title OTCClientVault
 /// @notice Holds a client's assets and executes multi-party OTC trades through a proposal-and-approval flow.
@@ -85,6 +86,7 @@ contract OTCClientVault is
     function deposit(address token, uint256 amount) external override onlyOwner nonReentrant {
         require(token != address(0), InvalidAddress());
         require(amount > 0, InvalidAmount());
+        _requireAllowedToken(token);
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(msg.sender, token, amount);
@@ -116,6 +118,7 @@ contract OTCClientVault is
         returns (uint256 proposalId)
     {
         require(token != address(0), InvalidAddress());
+        _requireAllowedToken(token);
         require(newLockUntil > block.timestamp, InvalidLockUntil());
         uint256 lockDuration = newLockUntil - block.timestamp;
         require(
@@ -137,6 +140,7 @@ contract OTCClientVault is
     function acceptLockProposal(uint256 proposalId) external override onlyOwner nonReentrant {
         OTCTypes.LockProposal storage p = lockProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedToken(p.token);
 
         uint256 lockUntil = tokenLockUntil[p.token];
         if (p.newLockUntil > lockUntil) {
@@ -161,6 +165,7 @@ contract OTCClientVault is
     /// @inheritdoc IOTCClientVault
     function adminDecreaseLock(address token, uint256 newLockUntil) external override onlyFactoryAdmin {
         require(token != address(0), InvalidAddress());
+        _requireAllowedToken(token);
         require(newLockUntil > block.timestamp, InvalidLockUntil());
 
         uint256 previousLockUntil = tokenLockUntil[token];
@@ -182,6 +187,8 @@ contract OTCClientVault is
         _validateDeliveryBase(
             params.token, params.amount, params.expectedReceivedToken, params.minExpectedReceivedAmount, params.deadline
         );
+        _requireAllowedToken(params.token);
+        if (params.expectedReceivedToken != address(0)) _requireAllowedToken(params.expectedReceivedToken);
         if (params.useAllowanceCall) {
             _validateAllowanceDelivery(params.deliveryAddress, params.target, params.callData);
         } else {
@@ -190,6 +197,7 @@ contract OTCClientVault is
             );
         }
         _validateExtraFee(extraFee);
+        if (extraFee.amount != 0) _requireAllowedToken(extraFee.token);
 
         proposalId = _nextProposalId();
         OTCTypes.DeliveryProposal storage p = _storeDeliveryProposal(proposalId, params, extraFee);
@@ -201,6 +209,7 @@ contract OTCClientVault is
     function acceptDeliveryProposal(uint256 proposalId) external override {
         OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedDeliveryProposal(p);
         _approveDeliveryRole(p, msg.sender);
         emit DeliveryAccepted(proposalId);
     }
@@ -209,6 +218,7 @@ contract OTCClientVault is
     function executeDelivery(uint256 proposalId) external override nonReentrant {
         OTCTypes.DeliveryProposal storage p = _deliveryProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedDeliveryProposal(p);
         _autoApproveDeliveryRole(p, msg.sender);
         require(p.clientApproved, ClientNotApproved());
 
@@ -269,6 +279,9 @@ contract OTCClientVault is
     {
         _validateSwapProposal(params);
         _validateExtraFee(extraFee);
+        _requireAllowedToken(params.tokenOut);
+        _requireAllowedToken(params.tokenIn);
+        if (extraFee.amount != 0) _requireAllowedToken(extraFee.token);
 
         proposalId = _nextProposalId();
         OTCTypes.SwapProposal storage p = _storeSwapProposal(proposalId, params, extraFee);
@@ -290,6 +303,7 @@ contract OTCClientVault is
     function approveSwap(uint256 proposalId) external override {
         OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedSwapProposal(p);
         require(uint8(p.level) <= uint8(swapAccessLevel), SwapLevelNotAllowed());
         _approveSwapRole(p, msg.sender);
         emit SwapApproved(proposalId, msg.sender);
@@ -299,6 +313,7 @@ contract OTCClientVault is
     function executeSwap(uint256 proposalId) external override nonReentrant {
         OTCTypes.SwapProposal storage p = _swapProposals[proposalId];
         _requireActive(p.deadline, p.executed, p.cancelled);
+        _requireAllowedSwapProposal(p);
         _autoApproveSwapRole(p, msg.sender);
         _requireSwapApprovals(p);
 
@@ -555,6 +570,23 @@ contract OTCClientVault is
         }
         require(extraFee.token != address(0), InvalidExtraFeeToken());
         require(extraFee.receiver != address(0), InvalidExtraFeeReceiver());
+    }
+
+    function _requireAllowedDeliveryProposal(OTCTypes.DeliveryProposal storage p) internal view {
+        _requireAllowedToken(p.token);
+        if (p.expectedReceivedToken != address(0)) _requireAllowedToken(p.expectedReceivedToken);
+        if (p.extraFee.amount != 0) _requireAllowedToken(p.extraFee.token);
+    }
+
+    function _requireAllowedSwapProposal(OTCTypes.SwapProposal storage p) internal view {
+        _requireAllowedToken(p.tokenOut);
+        _requireAllowedToken(p.tokenIn);
+        if (p.extraFee.amount != 0) _requireAllowedToken(p.extraFee.token);
+    }
+
+    function _requireAllowedToken(address token) internal view {
+        address registry = IOTCOperatorFactory(factory).registry();
+        require(IOTCFactoryRegistry(registry).isAllowedToken(token), IOTCFactoryRegistryErrors.TokenNotAllowed(token));
     }
 
     function _requireActive(uint256 deadline, bool executed, bool cancelled) internal view {

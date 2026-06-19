@@ -32,6 +32,8 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
     mapping(address operatorFactory => bool) public isOperatorFactory;
     /// @notice Whether `vault` is a client vault registered under this registry.
     mapping(address vault => bool) public isVault;
+    /// @notice Whether `token` may be used in OTC workflows.
+    mapping(address token => bool) public isAllowedToken;
 
     /// @notice Ordered list of operator factories deployed through this registry.
     address[] public operatorFactories;
@@ -106,6 +108,13 @@ contract OTCFactoryRegistry is Ownable, IOTCFactoryRegistry, IOTCFactoryRegistry
         address previousReceiver = protocolFeeReceiver;
         protocolFeeReceiver = newReceiver;
         emit ProtocolFeeReceiverUpdated(previousReceiver, newReceiver);
+    }
+
+    /// @inheritdoc IOTCFactoryRegistry
+    function setAllowedToken(address token, bool allowed) external override onlyOwner {
+        require(token != address(0), InvalidAddress());
+        isAllowedToken[token] = allowed;
+        emit AllowedTokenUpdated(token, allowed);
     }
 
     /// @inheritdoc IOTCFactoryRegistry
